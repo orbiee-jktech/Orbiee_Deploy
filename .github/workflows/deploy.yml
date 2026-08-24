@@ -37,7 +37,7 @@ jobs:
           BRANCH="${{ github.event.client_payload.ref }}"
           REPO="${{ github.event.client_payload.repository }}"
 
-          if [[ "$REPO" == "OrbieeJK/Orbiee_Backend" ]]; then
+          if [[ "$REPO" == "orbiee-jktech/Orbiee_Backend" ]]; then
 
             case "$BRANCH" in
               rearchitecture|feature/emotion_detection)
@@ -154,7 +154,7 @@ jobs:
           project_id: retail-jkommerce-poc
 
   deploy-backend:
-    if: ${{ github.event.client_payload.repository == 'OrbieeJK/Orbiee_Backend' }}
+    if: ${{ github.event.client_payload.repository == 'orbiee-jktech/Orbiee_Backend' }}
     runs-on: ubuntu-latest
     needs: setup
 
@@ -532,7 +532,7 @@ jobs:
             --region=${REGION} --format='value(status.url)')"
 
   deploy-frontend:
-    if: ${{ github.event.client_payload.repository == 'OrbieeJK/Orbiee_FrontEnd' }}
+    if: ${{ github.event.client_payload.repository == 'orbiee-jktech/Orbiee_FrontEnd' }}
     runs-on: ubuntu-latest
     needs: setup
 
