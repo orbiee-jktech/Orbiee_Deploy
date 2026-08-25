@@ -298,6 +298,7 @@ jobs:
             --platform=managed \
             --memory=2Gi \
             --region=${REGION} \
+            --timeout=3600 \
             --set-secrets=${SECRETS} \
             --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search,ORBIEE_EMOTION_SERVICE_URL=https://${EMOTION_DETECTION_SERVICE}-218142584790.us-central1.run.app" \
             --quiet
