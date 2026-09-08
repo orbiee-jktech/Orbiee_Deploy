@@ -397,6 +397,34 @@ jobs:
           assert tuple(map(int, setuptools.__version__.split('.')[:2])) >= (78, 1), setuptools.__version__
           "
 
+      - name: Check for duplicate Python package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          echo "Checking: ${IMAGE}"
+
+          docker run --rm "${IMAGE}" sh -c '
+            echo "=== msgpack ==="
+            find /usr/local/lib/python3.12/site-packages \
+              -maxdepth 1 \
+              \( -name "msgpack*.dist-info" -o -name "msgpack*.egg-info" \) \
+              -print
+
+            echo
+            echo "=== setuptools ==="
+            find /usr/local/lib/python3.12/site-packages \
+              -maxdepth 1 \
+              \( -name "setuptools*.dist-info" -o -name "setuptools*.egg-info" \) \
+              -print
+
+            echo
+            echo "=== pip list ==="
+            python -m pip list | grep -Ei "msgpack|setuptools" || true
+          '
+
       - name: Scan backend images with Trivy
         shell: bash
         run: |
@@ -433,7 +461,7 @@ jobs:
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "${PWD}/security-evidence:/work" \
-              aquasec/trivy:latest \
+              aquasec/trivy:0.74.0 \
               image \
               --format json \
               --output "/work/${SAFE_NAME}-trivy.json" \
