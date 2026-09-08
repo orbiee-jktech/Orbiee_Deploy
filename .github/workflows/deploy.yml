@@ -314,6 +314,28 @@ jobs:
             -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}" \
             .
 
+      - name: Inspect installed Python packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          echo "=== Python version ==="
+          docker run --rm "${IMAGE}" python --version
+
+          echo "=== msgpack ==="
+          docker run --rm "${IMAGE}" python -m pip show msgpack || true
+
+          echo "=== setuptools ==="
+          docker run --rm "${IMAGE}" python -m pip show setuptools || true
+
+          echo "=== pip ==="
+          docker run --rm "${IMAGE}" python -m pip show pip || true
+
+          echo "=== Relevant installed packages ==="
+          docker run --rm "${IMAGE}" python -m pip list | grep -Ei 'msgpack|setuptools|pip' || true
+
       - name: Build impressions analytics image
         run: |
           docker build \
