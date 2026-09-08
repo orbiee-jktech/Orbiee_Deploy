@@ -382,6 +382,25 @@ jobs:
         run: |
           mkdir -p security-evidence
 
+      - name: Verify image contents before Trivy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          echo "IMAGE: ${IMAGE}"
+
+          docker image inspect "${IMAGE}" \
+            --format='Image ID: {{.Id}}'
+
+          docker run --rm "${IMAGE}" \
+            python -c "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('setuptools=', setuptools.__version__)"
+
+          docker run --rm "${IMAGE}" \
+            python -m pip show msgpack setuptools
+
+
       - name: Scan backend images with Trivy
         shell: bash
         run: |
