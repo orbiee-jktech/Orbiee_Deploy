@@ -470,7 +470,7 @@ jobs:
             # Security gate
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy:latest \
+              aquasec/trivy:0.74.0 \
               image \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
@@ -481,7 +481,7 @@ jobs:
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "${PWD}/security-evidence:/work" \
-              aquasec/trivy:latest \
+              aquasec/trivy:0.74.0 \
               image \
               --format cyclonedx \
               --output "/work/${SAFE_NAME}-sbom.json" \
