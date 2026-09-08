@@ -382,23 +382,29 @@ jobs:
         run: |
           mkdir -p security-evidence
 
-      - name: Verify image contents before Trivy
+      - name: Verify image identity
         shell: bash
         run: |
           set -euo pipefail
 
           IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
 
-          echo "IMAGE: ${IMAGE}"
+          echo "IMAGE:"
+          echo "${IMAGE}"
 
+          echo ""
+          echo "Docker image:"
           docker image inspect "${IMAGE}" \
-            --format='Image ID: {{.Id}}'
+            --format='ID={{.Id}} TAGS={{.RepoTags}} CREATED={{.Created}}'
 
+          echo ""
+          echo "Package versions inside image:"
           docker run --rm "${IMAGE}" \
             python -c "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('setuptools=', setuptools.__version__)"
 
-          docker run --rm "${IMAGE}" \
-            python -m pip show msgpack setuptools
+          echo ""
+          echo "Trivy version:"
+          docker run --rm aquasec/trivy:latest version
 
 
       - name: Scan backend images with Trivy
@@ -428,7 +434,16 @@ jobs:
             echo "Scanning: ${IMAGE}"
             echo "=================================================="
 
-            # Full vulnerability report.
+            # Verify the exact image being scanned
+            docker image inspect "${IMAGE}" \
+              --format='IMAGE_ID={{.Id}} CREATED={{.Created}} TAGS={{.RepoTags}}'
+
+            echo "Package versions inside image:"
+
+            docker run --rm "${IMAGE}" \
+              python -c "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('setuptools=', setuptools.__version__)"
+
+            # Full vulnerability report
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "${PWD}/security-evidence:/work" \
@@ -438,10 +453,7 @@ jobs:
               --output "/work/${SAFE_NAME}-trivy.json" \
               "${IMAGE}"
 
-            # Security gate.
-            #
-            # HIGH and CRITICAL vulnerabilities with available
-            # fixes will fail the build.
+            # Security gate
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               aquasec/trivy:latest \
@@ -451,7 +463,7 @@ jobs:
               --exit-code 1 \
               "${IMAGE}"
 
-            # SBOM.
+            # SBOM
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "${PWD}/security-evidence:/work" \
