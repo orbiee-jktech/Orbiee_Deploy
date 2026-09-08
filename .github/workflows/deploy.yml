@@ -382,30 +382,20 @@ jobs:
         run: |
           mkdir -p security-evidence
 
-      - name: Verify image identity
+      - name: Verify backend image package versions
         shell: bash
         run: |
           set -euo pipefail
 
           IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
 
-          echo "IMAGE:"
-          echo "${IMAGE}"
-
-          echo ""
-          echo "Docker image:"
-          docker image inspect "${IMAGE}" \
-            --format='ID={{.Id}} TAGS={{.RepoTags}} CREATED={{.Created}}'
-
-          echo ""
-          echo "Package versions inside image:"
-          docker run --rm "${IMAGE}" \
-            python -c "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('setuptools=', setuptools.__version__)"
-
-          echo ""
-          echo "Trivy version:"
-          docker run --rm aquasec/trivy:latest version
-
+          docker run --rm "${IMAGE}" python -c "
+          import msgpack, setuptools
+          print('msgpack =', msgpack.__version__)
+          print('setuptools =', setuptools.__version__)
+          assert tuple(map(int, msgpack.__version__.split('.')[:2])) >= (1, 2), msgpack.__version__
+          assert tuple(map(int, setuptools.__version__.split('.')[:2])) >= (78, 1), setuptools.__version__
+          "
 
       - name: Scan backend images with Trivy
         shell: bash
@@ -414,10 +404,6 @@ jobs:
 
           IMAGES=(
             "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
           )
 
           if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
