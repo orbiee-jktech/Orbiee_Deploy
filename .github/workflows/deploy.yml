@@ -491,6 +491,10 @@ jobs:
 
           IMAGES=(
             "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
           )
 
           if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
@@ -884,271 +888,271 @@ jobs:
       - name: Setup Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy backend service
-        shell: bash
+      - name: Deploy to Cloud Run
+        if: steps.check.outputs.has_changes == 'true'
         run: |
-          set -euo pipefail
+          CLOUD_RUN_SERVICE="${{ needs.setup.outputs.cloud_run_service }}"
+          CLOUD_WORKER_SERVICE="${{ needs.setup.outputs.cloud_worker_service }}"
+          EMOTION_DETECTION_SERVICE="${{ needs.setup.outputs.emotion_detection_service }}"
+          REGION="${{ needs.setup.outputs.region }}"
+          AR_REGION="${{ needs.setup.outputs.artifact_registry_region }}"
+          AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
+          IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
+          EMOTION_DETECTION_IMAGE_NAME="${{ needs.setup.outputs.emotion_detection_image_name }}"
+          IMPRESSIONS_IMAGE_NAME="${{ needs.setup.outputs.impressions_image_name }}"
+          PREFERENCES_IMAGE_NAME="${{ needs.setup.outputs.preferences_image_name }}"
+          TYPE_AFFINITY_IMAGE_NAME="${{ needs.setup.outputs.type_affinity_image_name }}"
+          ITEM_POPULARITY_IMAGE_NAME="${{ needs.setup.outputs.item_popularity_image_name }}"
+          ENVIRONMENT="${{ needs.setup.outputs.environment }}"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          echo "Deploying for env: $ENVIRONMENT"
 
-          gcloud run deploy "${{ needs.setup.outputs.backend_service }}" \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
+          if [ "$ENVIRONMENT" = "dev" ]; then
+            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_BACKEND=orbiee-search-backend:latest"
+          else
+            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_BACKEND=orbiee-search-backend-demo:latest"
+          fi
+
+          echo "Secrets: $SECRETS"
+
+          gcloud run deploy ${CLOUD_RUN_SERVICE} \
+            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG} \
+            --platform=managed \
             --memory=2Gi \
+            --region=${REGION} \
             --timeout=3600 \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest,ORBIEE_SEARCH_BACKEND=ORBIEE_SEARCH_BACKEND:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ORBIEE_DEBUG=false,VERTEX_PROJECT=${{ env.GCP_PROJECT }},BRANCH=${{ needs.setup.outputs.ref }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+            --set-secrets=${SECRETS} \
+            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search,ORBIEE_EMOTION_SERVICE_URL=https://${EMOTION_DETECTION_SERVICE}-218142584790.us-central1.run.app" \
+            --quiet
 
-      - name: Deploy worker service
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ needs.build-backend.outputs.image_tag }}"
-
-          gcloud run deploy "${{ needs.setup.outputs.worker_service }}" \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
+          gcloud run deploy ${CLOUD_WORKER_SERVICE} \
+            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG} \
+            --platform=managed \
             --memory=2Gi \
-            --timeout=3600 \
-            --min=1 \
-            --max=1 \
+            --region=${REGION} \
+            --set-secrets=${SECRETS} \
+            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
             --command=python \
-            --args="-m,orbiee.workers.session_worker" \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest,ORBIEE_SEARCH_BACKEND=ORBIEE_SEARCH_BACKEND:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ORBIEE_DEBUG=false,VERTEX_PROJECT=${{ env.GCP_PROJECT }},BRANCH=${{ needs.setup.outputs.ref }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+            --args=-m,orbiee.workers.session_worker \
+            --min-instances=1 \
+            --max-instances=1 \
+            --quiet
 
-      - name: Allow internal compute service account to invoke worker
-        shell: bash
-        run: |
-          gcloud run services add-iam-policy-binding \
-            "${{ needs.setup.outputs.worker_service }}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
+          gcloud run services add-iam-policy-binding ${CLOUD_RUN_SERVICE} \
+            --region=${REGION} \
             --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
             --role="roles/run.invoker"
 
-      - name: Deploy emotion detection service
-        if: github.event.client_payload.deploy_emotion_detection == 'yes'
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run services add-iam-policy-binding ${CLOUD_WORKER_SERVICE} \
+            --region=${REGION} \
+            --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+            --role="roles/run.invoker"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
+            gcloud run deploy ${EMOTION_DETECTION_SERVICE} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
+              --platform=managed \
+              --cpu=4 \
+              --memory=8Gi \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --set-env-vars="EMOTION_MODEL_HUB=hf" \
+              --min-instances=1 \
+              --max-instances=1 \
+              --quiet
 
-          gcloud run deploy "${{ needs.setup.outputs.emotion_service }}" \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --cpu=4 \
-            --memory=8Gi \
-            --timeout=3600 \
-            --min=1 \
-            --max=1 \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ORBIEE_DEBUG=false,VERTEX_PROJECT=${{ env.GCP_PROJECT }},BRANCH=${{ needs.setup.outputs.ref }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+            gcloud run services add-iam-policy-binding ${EMOTION_DETECTION_SERVICE} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
+          fi
 
-      # --------------------------------------------------------
-      # CLOUD RUN JOBS
-      # --------------------------------------------------------
+          if gcloud run jobs describe ${IMPRESSIONS_IMAGE_NAME} --region=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing job..."
+            gcloud run jobs update ${IMPRESSIONS_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMPRESSIONS_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          else
+            echo "Creating new job..."
+            gcloud run jobs create ${IMPRESSIONS_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMPRESSIONS_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          fi
 
-      - name: Deploy impressions analytics job
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run jobs add-iam-policy-binding ${IMPRESSIONS_IMAGE_NAME} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          if gcloud scheduler jobs describe ${IMPRESSIONS_IMAGE_NAME}-weekly --location=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing job scheduler..."
+            gcloud scheduler jobs update http ${IMPRESSIONS_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 6 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${IMPRESSIONS_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          else
+            echo "Creating new job scheduler..."
+            gcloud scheduler jobs create http ${IMPRESSIONS_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 6 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${IMPRESSIONS_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          fi
 
-          gcloud run jobs create orbiee-impressions-analytics \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}" \
-          || \
-          gcloud run jobs update orbiee-impressions-analytics \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+          if gcloud run jobs describe ${PREFERENCES_IMAGE_NAME} --region=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing preferences job..."
+            gcloud run jobs update ${PREFERENCES_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          else
+            echo "Creating new preferences job..."
+            gcloud run jobs create ${PREFERENCES_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          fi
 
-      - name: Deploy preferences job
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run jobs add-iam-policy-binding ${PREFERENCES_IMAGE_NAME} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          if gcloud scheduler jobs describe ${PREFERENCES_IMAGE_NAME}-weekly --location=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing preferences job scheduler..."
+            gcloud scheduler jobs update http ${PREFERENCES_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 8 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${PREFERENCES_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          else
+            echo "Creating new preferences job scheduler..."
+            gcloud scheduler jobs create http ${PREFERENCES_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 8 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${PREFERENCES_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          fi
 
-          gcloud run jobs create orbiee-preferences \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}" \
-          || \
-          gcloud run jobs update orbiee-preferences \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+          # ── type_affinity refresh job (weekly, Mon 04:00) ──────────────────
+          if gcloud run jobs describe ${TYPE_AFFINITY_IMAGE_NAME} --region=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing type_affinity job..."
+            gcloud run jobs update ${TYPE_AFFINITY_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          else
+            echo "Creating new type_affinity job..."
+            gcloud run jobs create ${TYPE_AFFINITY_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          fi
 
-      - name: Deploy type affinity refresh job
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run jobs add-iam-policy-binding ${TYPE_AFFINITY_IMAGE_NAME} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          if gcloud scheduler jobs describe ${TYPE_AFFINITY_IMAGE_NAME}-weekly --location=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing type_affinity job scheduler..."
+            gcloud scheduler jobs update http ${TYPE_AFFINITY_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 4 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${TYPE_AFFINITY_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          else
+            echo "Creating new type_affinity job scheduler..."
+            gcloud scheduler jobs create http ${TYPE_AFFINITY_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 4 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${TYPE_AFFINITY_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          fi
 
-          gcloud run jobs create orbiee-type-affinity-refresh \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}" \
-          || \
-          gcloud run jobs update orbiee-type-affinity-refresh \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
+          # ── item_popularity refresh job (weekly, Mon 05:00) ────────────────
+          if gcloud run jobs describe ${ITEM_POPULARITY_IMAGE_NAME} --region=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing item_popularity job..."
+            gcloud run jobs update ${ITEM_POPULARITY_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          else
+            echo "Creating new item_popularity job..."
+            gcloud run jobs create ${ITEM_POPULARITY_IMAGE_NAME} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --max-retries=1 \
+              --service-account="218142584790-compute@developer.gserviceaccount.com" \
+              --task-timeout=15m
+          fi
 
-      - name: Deploy item popularity refresh job
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run jobs add-iam-policy-binding ${ITEM_POPULARITY_IMAGE_NAME} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ needs.build-backend.outputs.image_tag }}"
+          if gcloud scheduler jobs describe ${ITEM_POPULARITY_IMAGE_NAME}-weekly --location=${REGION} >/dev/null 2>&1; then
+            echo "Updating existing item_popularity job scheduler..."
+            gcloud scheduler jobs update http ${ITEM_POPULARITY_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 5 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${ITEM_POPULARITY_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          else
+            echo "Creating new item_popularity job scheduler..."
+            gcloud scheduler jobs create http ${ITEM_POPULARITY_IMAGE_NAME}-weekly \
+              --location=${REGION} \
+              --schedule="0 5 * * 1" \
+              --uri="https://run.googleapis.com/v2/projects/retail-jkommerce-poc/locations/${REGION}/jobs/${ITEM_POPULARITY_IMAGE_NAME}:run" \
+              --http-method=POST \
+              --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
+              --oauth-token-scope="https://www.googleapis.com/auth/cloud-platform"
+          fi
 
-          gcloud run jobs create orbiee-item-popularity-refresh \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}" \
-          || \
-          gcloud run jobs update orbiee-item-popularity-refresh \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --max-retries=1 \
-            --task-timeout=15m \
-            --set-secrets="DB_CONFIG=DB_CONFIG:latest,API_KEYS_JSON=API_KEYS_JSON:latest,REDIS_URL=REDIS_URL:latest" \
-            --set-env-vars="ORBIEE_GCP_PROJECT=${{ env.GCP_PROJECT }},ENVIRONMENT=${{ needs.setup.outputs.environment }}"
-
-      # --------------------------------------------------------
-      # CLOUD SCHEDULER
-      # --------------------------------------------------------
-
-      - name: Configure impressions analytics scheduler
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gcloud scheduler jobs create http orbiee-impressions-analytics-scheduler \
-            --schedule="0 6 * * 1" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-impressions-analytics:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-          || \
-          gcloud scheduler jobs update http orbiee-impressions-analytics-scheduler \
-            --schedule="0 6 * * 1" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-impressions-analytics:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}"
-
-      - name: Configure preferences scheduler
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gcloud scheduler jobs create http orbiee-preferences-scheduler \
-            --schedule="0 8 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-preferences:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-          || \
-          gcloud scheduler jobs update http orbiee-preferences-scheduler \
-            --schedule="0 8 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-preferences:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}"
-
-      - name: Configure type affinity scheduler
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gcloud scheduler jobs create http orbiee-type-affinity-refresh-scheduler \
-            --schedule="0 4 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-type-affinity-refresh:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-          || \
-          gcloud scheduler jobs update http orbiee-type-affinity-refresh-scheduler \
-            --schedule="0 4 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-type-affinity-refresh:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}"
-
-      - name: Configure item popularity scheduler
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gcloud scheduler jobs create http orbiee-item-popularity-refresh-scheduler \
-            --schedule="0 5 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-item-popularity-refresh:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-          || \
-          gcloud scheduler jobs update http orbiee-item-popularity-refresh-scheduler \
-            --schedule="0 5 * * *" \
-            --time-zone="UTC" \
-            --uri="https://${{ env.GCP_REGION }}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${{ env.GCP_PROJECT }}/jobs/orbiee-item-popularity-refresh:run" \
-            --http-method=POST \
-            --oauth-service-account-email="218142584790-compute@developer.gserviceaccount.com" \
-            --location="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}"
+          echo ""
+          echo "✅ Deployed: $CLOUD_RUN_SERVICE"
+          echo "🌍 URL: $(gcloud run services describe ${CLOUD_RUN_SERVICE} \
+            --region=${REGION} --format='value(status.url)')"
 
 
   # ============================================================
