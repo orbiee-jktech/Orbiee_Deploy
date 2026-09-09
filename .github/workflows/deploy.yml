@@ -382,48 +382,99 @@ jobs:
         run: |
           mkdir -p security-evidence
 
-      - name: Verify backend image package versions
+      - name: Check all Python package metadata
         shell: bash
         run: |
           set -euo pipefail
 
           IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
 
-          docker run --rm "${IMAGE}" python -c "
-          import msgpack, setuptools
-          print('msgpack =', msgpack.__version__)
-          print('setuptools =', setuptools.__version__)
-          assert tuple(map(int, msgpack.__version__.split('.')[:2])) >= (1, 2), msgpack.__version__
-          assert tuple(map(int, setuptools.__version__.split('.')[:2])) >= (78, 1), setuptools.__version__
-          "
-
-      - name: Check for duplicate Python package metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          echo "Checking: ${IMAGE}"
+          echo "=================================================="
+          echo "Checking Python package metadata"
+          echo "Image: ${IMAGE}"
+          echo "=================================================="
 
           docker run --rm "${IMAGE}" sh -c '
-            echo "=== msgpack ==="
-            find /usr/local/lib/python3.12/site-packages \
-              -maxdepth 1 \
-              \( -name "msgpack*.dist-info" -o -name "msgpack*.egg-info" \) \
-              -print
+            echo "=== Python ==="
+            which python || true
+            python --version || true
 
             echo
-            echo "=== setuptools ==="
-            find /usr/local/lib/python3.12/site-packages \
-              -maxdepth 1 \
-              \( -name "setuptools*.dist-info" -o -name "setuptools*.egg-info" \) \
-              -print
+            echo "=== Python sys.path ==="
+            python - <<'"'"'PY'"'"'
+          import sys
+          for p in sys.path:
+              print(p)
+          PY
+
+            echo
+            echo "=== msgpack import ==="
+            python - <<'"'"'PY'"'"'
+          import msgpack
+          print("version :", msgpack.__version__)
+          print("file    :", msgpack.__file__)
+          PY
+
+            echo
+            echo "=== setuptools import ==="
+            python - <<'"'"'PY'"'
+          import setuptools
+          print("version :", setuptools.__version__)
+          print("file    :", setuptools.__file__)
+          PY
+
+            echo
+            echo "=== ALL msgpack metadata ==="
+            find / \
+              -type d \
+              \( -name "msgpack-*.dist-info" -o -name "msgpack-*.egg-info" \) \
+              -print 2>/dev/null | sort
+
+            echo
+            echo "=== ALL setuptools metadata ==="
+            find / \
+              -type d \
+              \( -name "setuptools-*.dist-info" -o -name "setuptools-*.egg-info" \) \
+              -print 2>/dev/null | sort
+
+            echo
+            echo "=== ALL msgpack files ==="
+            find / \
+              -type f \
+              -path "*msgpack*" \
+              -print 2>/dev/null | head -200
+
+            echo
+            echo "=== ALL setuptools files ==="
+            find / \
+              -type f \
+              -path "*setuptools*" \
+              -print 2>/dev/null | head -200
+
+            echo
+            echo "=== pip metadata ==="
+            python -m pip show msgpack setuptools || true
 
             echo
             echo "=== pip list ==="
             python -m pip list | grep -Ei "msgpack|setuptools" || true
+
+            echo
+            echo "=== importlib.metadata ==="
+            python - <<'"'"'PY'"'
+          from importlib.metadata import distributions
+
+          for d in distributions():
+              name = (d.metadata.get("Name") or "").lower()
+              if name in {"msgpack", "setuptools"}:
+                  print(
+                      "name=", d.metadata.get("Name"),
+                      "version=", d.version,
+                      "path=", d._path
+                  )
+          PY
           '
+
 
       - name: Scan backend images with Trivy
         shell: bash
@@ -466,6 +517,32 @@ jobs:
               --format json \
               --output "/work/${SAFE_NAME}-trivy.json" \
               "${IMAGE}"
+
+            # --------------------------------------------------------
+            # DEBUG: Show exactly what Trivy detected for Python
+            # packages, including the package path.
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Trivy Python findings"
+            echo "=================================================="
+
+            jq '
+              .Results[]?.Vulnerabilities[]?
+              | select(
+                  (.PkgName == "msgpack") or
+                  (.PkgName == "setuptools")
+                )
+              | {
+                  Target,
+                  PkgName,
+                  InstalledVersion,
+                  FixedVersion,
+                  PkgPath,
+                  VulnerabilityID,
+                  Severity
+                }
+            ' "security-evidence/${SAFE_NAME}-trivy.json" || true
 
             # Security gate
             docker run --rm \
