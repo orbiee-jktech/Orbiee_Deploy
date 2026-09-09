@@ -590,28 +590,35 @@ jobs:
                 done
               '
 
-            # --------------------------------------------------------
+                        # --------------------------------------------------------
             # 5. Generate Trivy vulnerability report
             #
+            # .trivyignore is explicitly mounted into the Trivy
+            # container and passed with --ignorefile.
+            #
             # --exit-code 0 is intentional during investigation.
-            # Do NOT change this to 1 yet.
             # --------------------------------------------------------
             echo
             echo "=================================================="
             echo "Trivy vulnerability scan"
             echo "=================================================="
 
+            echo "Trivy ignore file:"
+            cat .trivyignore
+
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "${PWD}:/workspace" \
               -v "${PWD}/security-evidence:/work" \
               aquasec/trivy:0.74.0 \
               image \
               --scanners vuln \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
+              --ignorefile /workspace/.trivyignore \
               --format json \
               --output "/work/${SAFE_NAME}-trivy.json" \
-              --exit-code 0 \
+              --exit-code 1 \
               "${IMAGE}"
 
             # --------------------------------------------------------
