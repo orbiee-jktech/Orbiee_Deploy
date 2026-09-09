@@ -394,86 +394,38 @@ jobs:
           echo "Image: ${IMAGE}"
           echo "=================================================="
 
-          docker run --rm "${IMAGE}" sh -c '
-            echo "=== Python ==="
-            which python || true
-            python --version || true
+          echo "=== Python ==="
+          docker run --rm "${IMAGE}" python --version
 
-            echo
-            echo "=== Python sys.path ==="
-            python - <<'"'"'PY'"'"'
-          import sys
-          for p in sys.path:
-              print(p)
-          PY
+          echo
+          echo "=== msgpack ==="
+          docker run --rm "${IMAGE}" \
+            python -c 'import msgpack; print("version:", msgpack.__version__); print("file:", msgpack.__file__)'
 
-            echo
-            echo "=== msgpack import ==="
-            python - <<'"'"'PY'"'"'
-          import msgpack
-          print("version :", msgpack.__version__)
-          print("file    :", msgpack.__file__)
-          PY
+          echo
+          echo "=== setuptools ==="
+          docker run --rm "${IMAGE}" \
+            python -c 'import setuptools; print("version:", setuptools.__version__); print("file:", setuptools.__file__)'
 
-            echo
-            echo "=== setuptools import ==="
-            python - <<'"'"'PY'"'
-          import setuptools
-          print("version :", setuptools.__version__)
-          print("file    :", setuptools.__file__)
-          PY
-
-            echo
-            echo "=== ALL msgpack metadata ==="
-            find / \
-              -type d \
-              \( -name "msgpack-*.dist-info" -o -name "msgpack-*.egg-info" \) \
-              -print 2>/dev/null | sort
-
-            echo
-            echo "=== ALL setuptools metadata ==="
-            find / \
-              -type d \
-              \( -name "setuptools-*.dist-info" -o -name "setuptools-*.egg-info" \) \
-              -print 2>/dev/null | sort
-
-            echo
-            echo "=== ALL msgpack files ==="
-            find / \
-              -type f \
-              -path "*msgpack*" \
-              -print 2>/dev/null | head -200
-
-            echo
-            echo "=== ALL setuptools files ==="
-            find / \
-              -type f \
-              -path "*setuptools*" \
-              -print 2>/dev/null | head -200
-
-            echo
-            echo "=== pip metadata ==="
+          echo
+          echo "=== pip metadata ==="
+          docker run --rm "${IMAGE}" \
             python -m pip show msgpack setuptools || true
 
-            echo
-            echo "=== pip list ==="
-            python -m pip list | grep -Ei "msgpack|setuptools" || true
+          echo
+          echo "=== pip list ==="
+          docker run --rm "${IMAGE}" \
+            python -m pip list | grep -Ei 'msgpack|setuptools' || true
 
-            echo
-            echo "=== importlib.metadata ==="
-            python - <<'"'"'PY'"'
-          from importlib.metadata import distributions
+          echo
+          echo "=== msgpack metadata locations ==="
+          docker run --rm "${IMAGE}" \
+            sh -c 'find / -type d \( -name "msgpack-*.dist-info" -o -name "msgpack-*.egg-info" \) -print 2>/dev/null | sort'
 
-          for d in distributions():
-              name = (d.metadata.get("Name") or "").lower()
-              if name in {"msgpack", "setuptools"}:
-                  print(
-                      "name=", d.metadata.get("Name"),
-                      "version=", d.version,
-                      "path=", d._path
-                  )
-          PY
-          '
+          echo
+          echo "=== setuptools metadata locations ==="
+          docker run --rm "${IMAGE}" \
+            sh -c 'find / -type d \( -name "setuptools-*.dist-info" -o -name "setuptools-*.egg-info" \) -print 2>/dev/null | sort'
 
 
       - name: Scan backend images with Trivy
