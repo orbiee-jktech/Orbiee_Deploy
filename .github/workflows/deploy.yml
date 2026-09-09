@@ -428,6 +428,62 @@ jobs:
             sh -c 'find / -type d \( -name "setuptools-*.dist-info" -o -name "setuptools-*.egg-info" \) -print 2>/dev/null | sort'
 
 
+      - name: Diagnose Trivy package detection
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+
+          echo "=================================================="
+          echo "Image labels"
+          echo "=================================================="
+
+          docker image inspect "${IMAGE}" \
+            --format '{{json .Config.Labels}}' | jq .
+
+          echo
+          echo "=================================================="
+          echo "Trivy debug scan"
+          echo "=================================================="
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${PWD}/security-evidence:/work" \
+            aquasec/trivy:0.74.0 \
+            image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --debug \
+            --format json \
+            --output "/work/trivy-debug.json" \
+            --exit-code 0 \
+            "${IMAGE}"
+
+          echo
+          echo "=================================================="
+          echo "Trivy msgpack/setuptools findings"
+          echo "=================================================="
+
+          jq '
+            .Results[]?.Vulnerabilities[]?
+            | select(
+                .PkgName == "msgpack" or
+                .PkgName == "setuptools"
+              )
+            | {
+                Target,
+                PkgName,
+                InstalledVersion,
+                FixedVersion,
+                PkgPath,
+                VulnerabilityID,
+                Severity
+              }
+          ' security-evidence/trivy-debug.json || true
+
+      
       - name: Scan backend images with Trivy
         shell: bash
         run: |
