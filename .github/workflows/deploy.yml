@@ -4,909 +4,267 @@ on:
   repository_dispatch:
     types: [trigger-orbiee]
 
-# Minimum permissions required by this workflow.
-permissions:
-  contents: read
-
-env:
-  GCP_PROJECT: retail-jkommerce-poc
-  GCP_REGION: us-central1
-  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev/retail-jkommerce-poc/orbiee
-
 jobs:
-
-  # ============================================================
-  # 1. SETUP / VALIDATION
-  # ============================================================
   setup:
-    name: Validate Deployment Request
     runs-on: ubuntu-latest
-
     outputs:
-      repository: ${{ steps.validate.outputs.repository }}
-      ref: ${{ steps.validate.outputs.ref }}
-      sha: ${{ steps.validate.outputs.sha }}
-      environment: ${{ steps.config.outputs.environment }}
-
-      backend_service: ${{ steps.config.outputs.backend_service }}
-      worker_service: ${{ steps.config.outputs.worker_service }}
-      emotion_service: ${{ steps.config.outputs.emotion_service }}
-
-      backend_image: ${{ steps.config.outputs.backend_image }}
-      emotion_image: ${{ steps.config.outputs.emotion_image }}
-      impressions_image: ${{ steps.config.outputs.impressions_image }}
-      preferences_image: ${{ steps.config.outputs.preferences_image }}
-      type_affinity_image: ${{ steps.config.outputs.type_affinity_image }}
-      item_popularity_image: ${{ steps.config.outputs.item_popularity_image }}
-
-      frontend_service: ${{ steps.config.outputs.frontend_service }}
-      frontend_image: ${{ steps.config.outputs.frontend_image }}
+      branch: ${{ steps.env.outputs.branch }}
+      region: ${{ steps.env.outputs.region }}
+      artifact_registry_region: ${{ steps.env.outputs.artifact_registry_region }}
+      artifact_registry_repo: ${{ steps.env.outputs.artifact_registry_repo }}
+      cloud_run_service: ${{ steps.env.outputs.cloud_run_service }}
+      cloud_worker_service: ${{ steps.env.outputs.cloud_worker_service }}
+      emotion_detection_service: ${{ steps.env.outputs.emotion_detection_service }}
+      image_name: ${{ steps.env.outputs.image_name }}
+      emotion_detection_image_name: ${{ steps.env.outputs.emotion_detection_image_name }}
+      impressions_image_name: ${{ steps.env.outputs.impressions_image_name }}
+      preferences_image_name: ${{ steps.env.outputs.preferences_image_name }}
+      type_affinity_image_name: ${{ steps.env.outputs.type_affinity_image_name }}
+      item_popularity_image_name: ${{ steps.env.outputs.item_popularity_image_name }}
+      environment: ${{ steps.env.outputs.environment }}
 
     steps:
-      - name: Validate deployment payload
-        id: validate
-        shell: bash
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.ref }}
+          token: ${{ secrets.PRIVATETOKENPULL }}
+
+      - name: Determine Environment
+        id: env
         run: |
-          set -euo pipefail
+          BRANCH="${{ github.event.client_payload.ref }}"
+          REPO="${{ github.event.client_payload.repository }}"
 
-          REPOSITORY="${{ github.event.client_payload.repository }}"
-          REF="${{ github.event.client_payload.ref }}"
-          SHA="${{ github.event.client_payload.sha }}"
+          if [[ "$REPO" == "orbiee-jktech/Orbiee_Backend" ]]; then
 
-          echo "Repository : ${REPOSITORY}"
-          echo "Ref        : ${REF}"
-          echo "SHA        : ${SHA}"
-
-          if [[ -z "${REPOSITORY}" ]]; then
-            echo "ERROR: repository is missing."
-            exit 1
-          fi
-
-          if [[ -z "${REF}" ]]; then
-            echo "ERROR: ref is missing."
-            exit 1
-          fi
-
-          if [[ -z "${SHA}" ]]; then
-            echo "ERROR: sha is missing."
-            echo "Deployment must use an immutable commit SHA."
-            exit 1
-          fi
-
-          # Only allow the known source repositories.
-          case "${REPOSITORY}" in
-            orbiee-jktech/Orbiee_Backend)
-              echo "Recognized backend repository."
-              ;;
-            orbiee-jktech/Orbiee_FrontEnd)
-              echo "Recognized frontend repository."
-              ;;
-            *)
-              echo "ERROR: Unauthorized repository: ${REPOSITORY}"
-              exit 1
-              ;;
-          esac
-
-          # Validate SHA format.
-          if [[ ! "${SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "ERROR: Invalid commit SHA."
-            exit 1
-          fi
-
-          echo "repository=${REPOSITORY}" >> "${GITHUB_OUTPUT}"
-          echo "ref=${REF}" >> "${GITHUB_OUTPUT}"
-          echo "sha=${SHA}" >> "${GITHUB_OUTPUT}"
-
-      - name: Determine deployment configuration
-        id: config
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          REPOSITORY="${{ steps.validate.outputs.repository }}"
-          REF="${{ steps.validate.outputs.ref }}"
-
-          echo "Determining configuration..."
-          echo "Repository: ${REPOSITORY}"
-          echo "Ref: ${REF}"
-
-          # ------------------------------------------------------
-          # BACKEND
-          # ------------------------------------------------------
-          if [[ "${REPOSITORY}" == "orbiee-jktech/Orbiee_Backend" ]]; then
-
-            case "${REF}" in
-
+            case "$BRANCH" in
               rearchitecture|feature/emotion_detection)
+                CLOUD_RUN_SERVICE="orbiee-backend-dev"
+                IMAGE_NAME="orbiee-backend-dev"
+                EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev"
+                PREFERENCES_IMAGE_NAME="orbiee-preferences-dev"
+                TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev"
+                ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev"
+                CLOUD_WORKER_SERVICE="orbiee-worker-dev"
+                EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
                 ENVIRONMENT="dev"
-
-                BACKEND_SERVICE="orbiee-backend-dev"
-                WORKER_SERVICE="orbiee-worker-dev"
-                EMOTION_SERVICE="orbiee-emotion-detection-dev"
-
-                BACKEND_IMAGE="orbiee-backend-dev"
-                EMOTION_IMAGE="orbiee-emotion-detection-dev"
-                IMPRESSIONS_IMAGE="orbiee-impressions-analytics-dev"
-                PREFERENCES_IMAGE="orbiee-preferences-dev"
-                TYPE_AFFINITY_IMAGE="orbiee-type-affinity-refresh-dev"
-                ITEM_POPULARITY_IMAGE="orbiee-item-popularity-refresh-dev"
                 ;;
 
               feature/SearchRetrieval)
-                ENVIRONMENT="dev1"
-
-                BACKEND_SERVICE="orbiee-backend-dev1"
-                WORKER_SERVICE="orbiee-worker-dev1"
-                EMOTION_SERVICE="orbiee-emotion-detection-dev1"
-
-                BACKEND_IMAGE="orbiee-backend-dev1"
-                EMOTION_IMAGE="orbiee-emotion-detection-dev1"
-                IMPRESSIONS_IMAGE="orbiee-impressions-analytics-dev1"
-                PREFERENCES_IMAGE="orbiee-preferences-dev1"
-                TYPE_AFFINITY_IMAGE="orbiee-type-affinity-refresh-dev1"
-                ITEM_POPULARITY_IMAGE="orbiee-item-popularity-refresh-dev1"
+                CLOUD_RUN_SERVICE="orbiee-backend-dev1"
+                IMAGE_NAME="orbiee-backend-dev1"
+                EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev1"
+                PREFERENCES_IMAGE_NAME="orbiee-preferences-dev1"
+                TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev1"
+                ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev1"
+                CLOUD_WORKER_SERVICE="orbiee-worker-dev1"
+                EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
+                ENVIRONMENT="dev"
                 ;;
 
               feature/*)
+                CLOUD_RUN_SERVICE="orbiee-backend-dev"
+                IMAGE_NAME="orbiee-backend-dev"
+                EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev"
+                PREFERENCES_IMAGE_NAME="orbiee-preferences-dev"
+                TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev"
+                ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev"
+                CLOUD_WORKER_SERVICE="orbiee-worker-dev"
+                EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
                 ENVIRONMENT="dev"
-
-                BACKEND_SERVICE="orbiee-backend-dev"
-                WORKER_SERVICE="orbiee-worker-dev"
-                EMOTION_SERVICE="orbiee-emotion-detection-dev"
-
-                BACKEND_IMAGE="orbiee-backend-dev"
-                EMOTION_IMAGE="orbiee-emotion-detection-dev"
-                IMPRESSIONS_IMAGE="orbiee-impressions-analytics-dev"
-                PREFERENCES_IMAGE="orbiee-preferences-dev"
-                TYPE_AFFINITY_IMAGE="orbiee-type-affinity-refresh-dev"
-                ITEM_POPULARITY_IMAGE="orbiee-item-popularity-refresh-dev"
                 ;;
-
+                
               rearchitecture_demo)
+                CLOUD_RUN_SERVICE="orbiee-backend"
+                IMAGE_NAME="orbiee-backend"
+                EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection"
+                IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics"
+                PREFERENCES_IMAGE_NAME="orbiee-preferences"
+                TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh"
+                ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh"
+                CLOUD_WORKER_SERVICE="orbiee-worker"
+                EMOTION_DETECTION_SERVICE="orbiee-emotion-detection"
                 ENVIRONMENT="demo"
-
-                BACKEND_SERVICE="orbiee-backend"
-                WORKER_SERVICE="orbiee-worker"
-                EMOTION_SERVICE="orbiee-emotion-detection"
-
-                BACKEND_IMAGE="orbiee-backend"
-                EMOTION_IMAGE="orbiee-emotion-detection"
-                IMPRESSIONS_IMAGE="orbiee-impressions-analytics"
-                PREFERENCES_IMAGE="orbiee-preferences"
-                TYPE_AFFINITY_IMAGE="orbiee-type-affinity-refresh"
-                ITEM_POPULARITY_IMAGE="orbiee-item-popularity-refresh"
                 ;;
-
+                
               *)
-                echo "ERROR: Unsupported backend ref: ${REF}"
+                echo "Unsupported backend branch: $BRANCH"
                 exit 1
                 ;;
             esac
 
-            echo "environment=${ENVIRONMENT}" >> "${GITHUB_OUTPUT}"
+          else
 
-            echo "backend_service=${BACKEND_SERVICE}" >> "${GITHUB_OUTPUT}"
-            echo "worker_service=${WORKER_SERVICE}" >> "${GITHUB_OUTPUT}"
-            echo "emotion_service=${EMOTION_SERVICE}" >> "${GITHUB_OUTPUT}"
-
-            echo "backend_image=${BACKEND_IMAGE}" >> "${GITHUB_OUTPUT}"
-            echo "emotion_image=${EMOTION_IMAGE}" >> "${GITHUB_OUTPUT}"
-            echo "impressions_image=${IMPRESSIONS_IMAGE}" >> "${GITHUB_OUTPUT}"
-            echo "preferences_image=${PREFERENCES_IMAGE}" >> "${GITHUB_OUTPUT}"
-            echo "type_affinity_image=${TYPE_AFFINITY_IMAGE}" >> "${GITHUB_OUTPUT}"
-            echo "item_popularity_image=${ITEM_POPULARITY_IMAGE}" >> "${GITHUB_OUTPUT}"
-
-          # ------------------------------------------------------
-          # FRONTEND
-          # ------------------------------------------------------
-          elif [[ "${REPOSITORY}" == "orbiee-jktech/Orbiee_FrontEnd" ]]; then
-
-            case "${REF}" in
-
+            case "$BRANCH" in
               dev|rearchitecture)
-                ENVIRONMENT="dev"
-                FRONTEND_SERVICE="orbiee-dev"
-                FRONTEND_IMAGE="orbiee-dev"
+                CLOUD_RUN_SERVICE="orbiee-dev"
+                IMAGE_NAME="orbiee-dev"
                 ;;
 
               search-testing)
-                ENVIRONMENT="dev1"
-                FRONTEND_SERVICE="orbiee-dev1"
-                FRONTEND_IMAGE="orbiee-dev1"
+                CLOUD_RUN_SERVICE="orbiee-dev1"
+                IMAGE_NAME="orbiee-dev1"
                 ;;
-
+                
               demov1|rearchitecture_demo)
-                ENVIRONMENT="demo"
-                FRONTEND_SERVICE="orbiee"
-                FRONTEND_IMAGE="orbiee-demo"
+                CLOUD_RUN_SERVICE="orbiee"
+                IMAGE_NAME="orbiee-demo"
                 ;;
-
+                
               *)
-                echo "ERROR: Unsupported frontend ref: ${REF}"
+                echo "Unsupported frontend branch: $BRANCH"
                 exit 1
                 ;;
             esac
 
-            echo "environment=${ENVIRONMENT}" >> "${GITHUB_OUTPUT}"
-
-            echo "frontend_service=${FRONTEND_SERVICE}" >> "${GITHUB_OUTPUT}"
-            echo "frontend_image=${FRONTEND_IMAGE}" >> "${GITHUB_OUTPUT}"
-
           fi
 
-          echo "Deployment configuration:"
-          cat "${GITHUB_OUTPUT}"
+          REGION="us-central1"
+          ARTIFACT_REGISTRY_REGION="us-central1"
+          ARTIFACT_REGISTRY_REPO="orbiee"
 
+          echo "branch=$BRANCH"                                         >> $GITHUB_OUTPUT
+          echo "region=$REGION"                                         >> $GITHUB_OUTPUT
+          echo "artifact_registry_region=$ARTIFACT_REGISTRY_REGION"    >> $GITHUB_OUTPUT
+          echo "artifact_registry_repo=$ARTIFACT_REGISTRY_REPO"        >> $GITHUB_OUTPUT
+          echo "cloud_run_service=$CLOUD_RUN_SERVICE"                   >> $GITHUB_OUTPUT
+          echo "cloud_worker_service=$CLOUD_WORKER_SERVICE"             >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME"                                 >> $GITHUB_OUTPUT
+          echo "emotion_detection_service=$EMOTION_DETECTION_SERVICE"   >> $GITHUB_OUTPUT
+          echo "emotion_detection_image_name=$EMOTION_DETECTION_IMAGE_NAME"  >> $GITHUB_OUTPUT
+          echo "impressions_image_name=$IMPRESSIONS_IMAGE_NAME"         >> $GITHUB_OUTPUT
+          echo "preferences_image_name=$PREFERENCES_IMAGE_NAME"         >> $GITHUB_OUTPUT
+          echo "type_affinity_image_name=$TYPE_AFFINITY_IMAGE_NAME"     >> $GITHUB_OUTPUT
+          echo "item_popularity_image_name=$ITEM_POPULARITY_IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT"                               >> $GITHUB_OUTPUT
 
-  # ============================================================
-  # 2. BUILD + SECURITY SCAN BACKEND
-  # ============================================================
-  build-backend:
-    name: Build and Security Scan Backend
-    needs: setup
-    if: needs.setup.outputs.repository == 'orbiee-jktech/Orbiee_Backend'
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.GCP_SAKEY }}"
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: retail-jkommerce-poc
+
+  deploy-backend:
+    if: ${{ github.event.client_payload.repository == 'orbiee-jktech/Orbiee_Backend' }}
     runs-on: ubuntu-latest
-
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
+    needs: setup
 
     steps:
-
-      - name: Checkout exact source commit
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          repository: ${{ needs.setup.outputs.repository }}
-          ref: ${{ needs.setup.outputs.sha }}
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.ref }}
           token: ${{ secrets.PRIVATETOKENPULL }}
           fetch-depth: 0
 
-      - name: Verify exact commit
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          EXPECTED_SHA="${{ needs.setup.outputs.sha }}"
-          ACTUAL_SHA="$(git rev-parse HEAD)"
-
-          echo "Expected SHA: ${EXPECTED_SHA}"
-          echo "Actual SHA:   ${ACTUAL_SHA}"
-
-          if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
-            echo "ERROR: Checked out commit does not match requested SHA."
-            exit 1
-          fi
-
-          echo "Exact commit verified successfully."
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SAKEY }}
+          credentials_json: "${{ secrets.GCP_SAKEY }}"
 
-      - name: Setup Google Cloud CLI
+      - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: retail-jkommerce-poc
 
-      - name: Configure Docker authentication
+      - name: Check for Changes
+        id: check
         run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          git fetch --tags 2>/dev/null || true
+          BRANCH="${{ needs.setup.outputs.branch }}"
+          CHANGED=""
 
-      - name: Generate immutable image tag
-        id: meta
-        shell: bash
+          if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            ORIGIN_SHA=$(git rev-parse "origin/$BRANCH")
+            HEAD_SHA=$(git rev-parse HEAD)
+
+            if [[ "$ORIGIN_SHA" == "$HEAD_SHA" ]]; then
+              CHANGED="true"
+            else
+              CHANGED=$(git diff --name-only "origin/$BRANCH" HEAD | \
+                grep -vE '^(\.github/|README|WEBRTC_|cloudbuild)' || true)
+            fi
+          else
+            CHANGED="true"
+          fi
+
+          if [[ -n "$CHANGED" ]]; then
+            echo "✅ Changes detected, will deploy"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏭️  No relevant changes, skipping"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set Image Tag
+        if: steps.check.outputs.has_changes == 'true'
         run: |
-          set -euo pipefail
+          TAG=$(date +%Y%m%d-%H%M%S)
+          echo "TAG=$TAG" >> $GITHUB_ENV
 
-          SHORT_SHA="$(git rev-parse --short=12 HEAD)"
-          TIMESTAMP="$(date -u +'%Y%m%d-%H%M%S')"
-
-          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
-
-          echo "Image tag: ${IMAGE_TAG}"
-          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
-
-      # --------------------------------------------------------
-      # BUILD ALL BACKEND IMAGES
-      # --------------------------------------------------------
-      - name: Build backend image
+      - name: Build and Push Docker Image
+        if: steps.check.outputs.has_changes == 'true'
         run: |
+          BRANCH="${{ needs.setup.outputs.branch }}"
+          AR_REGION="${{ needs.setup.outputs.artifact_registry_region }}"
+          AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
+          IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
+          EMOTION_DETECTION_IMAGE_NAME="${{ needs.setup.outputs.emotion_detection_image_name }}"
+          IMPRESSIONS_IMAGE_NAME="${{ needs.setup.outputs.impressions_image_name }}"
+          PREFERENCES_IMAGE_NAME="${{ needs.setup.outputs.preferences_image_name }}"
+          TYPE_AFFINITY_IMAGE_NAME="${{ needs.setup.outputs.type_affinity_image_name }}"
+          ITEM_POPULARITY_IMAGE_NAME="${{ needs.setup.outputs.item_popularity_image_name }}"
+
           docker build \
             -f apps/orbiee_core/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}" \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG} \
             .
 
-      - name: Inspect installed Python packages
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          echo "=== Python version ==="
-          docker run --rm "${IMAGE}" python --version
-
-          echo "=== msgpack ==="
-          docker run --rm "${IMAGE}" python -m pip show msgpack || true
-
-          echo "=== setuptools ==="
-          docker run --rm "${IMAGE}" python -m pip show setuptools || true
-
-          echo "=== pip ==="
-          docker run --rm "${IMAGE}" python -m pip show pip || true
-
-          echo "=== Relevant installed packages ==="
-          docker run --rm "${IMAGE}" python -m pip list | grep -Ei 'msgpack|setuptools|pip' || true
-
-      - name: Build impressions analytics image
-        run: |
           docker build \
             -f apps/impressions_analytics_job/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}" \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMPRESSIONS_IMAGE_NAME}:${TAG} \
             .
 
-      - name: Build preferences image
-        run: |
           docker build \
             -f apps/affinity_learning_service/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}" \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG} \
             .
 
-      - name: Build type affinity refresh image
-        run: |
           docker build \
             -f apps/type_affinity_refresh_job/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}" \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG} \
             .
 
-      - name: Build item popularity refresh image
-        run: |
           docker build \
             -f apps/item_popularity_refresh_job/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}" \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
             .
 
-      - name: Build emotion detection image
-        if: github.event.client_payload.deploy_emotion_detection == 'yes'
-        run: |
-          docker build \
-            -f apps/emotion_detection_service/Dockerfile \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ steps.meta.outputs.image_tag }}" \
-            .
+          gcloud auth configure-docker ${AR_REGION}-docker.pkg.dev --quiet
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMPRESSIONS_IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG}
+          
+          if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
+            docker build \
+              -f apps/emotion_detection_service/Dockerfile \
+              -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
+              apps/emotion_detection_service
 
-      # --------------------------------------------------------
-      # SECURITY SCANNING
-      #
-      # Important:
-      # Images are NOT pushed until all security scans pass.
-      # --------------------------------------------------------
-      - name: Create security evidence directory
-        run: |
-          mkdir -p security-evidence
-
-      - name: Check all Python package metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          echo "=================================================="
-          echo "Checking Python package metadata"
-          echo "Image: ${IMAGE}"
-          echo "=================================================="
-
-          echo "=== Python ==="
-          docker run --rm "${IMAGE}" python --version
-
-          echo
-          echo "=== msgpack ==="
-          docker run --rm "${IMAGE}" \
-            python -c 'import msgpack; print("version:", msgpack.__version__); print("file:", msgpack.__file__)'
-
-          echo
-          echo "=== setuptools ==="
-          docker run --rm "${IMAGE}" \
-            python -c 'import setuptools; print("version:", setuptools.__version__); print("file:", setuptools.__file__)'
-
-          echo
-          echo "=== pip metadata ==="
-          docker run --rm "${IMAGE}" \
-            python -m pip show msgpack setuptools || true
-
-          echo
-          echo "=== pip list ==="
-          docker run --rm "${IMAGE}" \
-            python -m pip list | grep -Ei 'msgpack|setuptools' || true
-
-          echo
-          echo "=== msgpack metadata locations ==="
-          docker run --rm "${IMAGE}" \
-            sh -c 'find / -type d \( -name "msgpack-*.dist-info" -o -name "msgpack-*.egg-info" \) -print 2>/dev/null | sort'
-
-          echo
-          echo "=== setuptools metadata locations ==="
-          docker run --rm "${IMAGE}" \
-            sh -c 'find / -type d \( -name "setuptools-*.dist-info" -o -name "setuptools-*.egg-info" \) -print 2>/dev/null | sort'
-
-
-      - name: Diagnose Trivy package detection
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          echo "=================================================="
-          echo "Image labels"
-          echo "=================================================="
-
-          docker image inspect "${IMAGE}" \
-            --format '{{json .Config.Labels}}' | jq .
-
-          echo
-          echo "=================================================="
-          echo "Trivy debug scan"
-          echo "=================================================="
-
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${PWD}/security-evidence:/work" \
-            aquasec/trivy:0.74.0 \
-            image \
-            --scanners vuln \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --debug \
-            --format json \
-            --output "/work/trivy-debug.json" \
-            --exit-code 0 \
-            "${IMAGE}"
-
-          echo
-          echo "=================================================="
-          echo "Trivy msgpack/setuptools findings"
-          echo "=================================================="
-
-          jq '
-            .Results[]?.Vulnerabilities[]?
-            | select(
-                .PkgName == "msgpack" or
-                .PkgName == "setuptools"
-              )
-            | {
-                Target,
-                PkgName,
-                InstalledVersion,
-                FixedVersion,
-                PkgPath,
-                VulnerabilityID,
-                Severity
-              }
-          ' security-evidence/trivy-debug.json || true
-
-      
-      - name: Scan backend images with Trivy
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGES=(
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
-          )
-
-          if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
-            IMAGES+=(
-              "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ steps.meta.outputs.image_tag }}"
-            )
+            docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG}
           fi
-
-          mkdir -p security-evidence
-
-          echo "=================================================="
-          echo "Verifying Trivy ignore file"
-          echo "=================================================="
-
-          echo "Current directory:"
-          pwd
-
-          echo "Ignore file path:"
-          ls -la .trivyignore
-
-          echo "Ignore file contents:"
-          cat -n .trivyignore
-
-          echo "Checking CVE:"
-          if grep -Fxq "CVE-2025-47273" .trivyignore; then
-            echo "CVE-2025-47273 IS present in .trivyignore"
-          else
-            echo "ERROR: CVE-2025-47273 IS NOT present in .trivyignore"
-          fi
-
-          for IMAGE in "${IMAGES[@]}"; do
-
-            SAFE_NAME="$(echo "${IMAGE}" | sed 's#[/:]#_#g')"
-
-            echo "=================================================="
-            echo "Scanning: ${IMAGE}"
-            echo "=================================================="
-
-            # --------------------------------------------------------
-            # 1. Verify the exact image being scanned
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Docker image"
-            echo "=================================================="
-
-            docker image inspect "${IMAGE}" \
-              --format='IMAGE_ID={{.Id}} CREATED={{.Created}} TAGS={{.RepoTags}}'
-
-            # --------------------------------------------------------
-            # 2. Verify package versions from inside the container
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Python package versions inside image"
-            echo "=================================================="
-
-            docker run --rm "${IMAGE}" \
-              python -c \
-              "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('msgpack_file=', msgpack.__file__); print('setuptools=', setuptools.__version__); print('setuptools_file=', setuptools.__file__)"
-
-            # --------------------------------------------------------
-            # 3. Verify installed distribution metadata
-            #
-            # This confirms the versions recorded in dist-info/egg-info,
-            # independently of Python's imported module version.
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Package distribution metadata inside image"
-            echo "=================================================="
-
-            docker run --rm "${IMAGE}" \
-              python -c '
-          from importlib.metadata import distribution
-
-          for name in ("msgpack", "setuptools"):
-              try:
-                  dist = distribution(name)
-                  print(name + "=")
-                  print("  version=" + dist.version)
-                  print("  location=" + str(dist.locate_file("")))
-                  print("  metadata=" + str(dist._path))
-              except Exception as e:
-                  print(name + "=ERROR: " + str(e))
-          '
-
-            # --------------------------------------------------------
-            # 4. Find all relevant dist-info / egg-info metadata files
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Package metadata locations"
-            echo "=================================================="
-
-            docker run --rm "${IMAGE}" \
-              sh -c '
-                echo "--- msgpack ---"
-                find / -type f \
-                  \( -path "*/msgpack-*.dist-info/METADATA" \
-                     -o -path "*/msgpack-*.egg-info/PKG-INFO" \) \
-                  -print 2>/dev/null |
-                while read -r f; do
-                  echo "----- ${f} -----"
-                  grep -E "^(Name|Version):" "${f}" || true
-                done
-
-                echo
-                echo "--- setuptools ---"
-                find / -type f \
-                  \( -path "*/setuptools-*.dist-info/METADATA" \
-                     -o -path "*/setuptools-*.egg-info/PKG-INFO" \) \
-                  -print 2>/dev/null |
-                while read -r f; do
-                  echo "----- ${f} -----"
-                  grep -E "^(Name|Version):" "${f}" || true
-                done
-              '
-
-                        # --------------------------------------------------------
-            # 5. Generate Trivy vulnerability report
-            #
-            # .trivyignore is explicitly mounted into the Trivy
-            # container and passed with --ignorefile.
-            #
-            # --exit-code 0 is intentional during investigation.
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Trivy vulnerability scan"
-            echo "=================================================="
-
-            echo "Trivy ignore file:"
-            cat .trivyignore
-
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "${PWD}:/workspace" \
-              -v "${PWD}/security-evidence:/work" \
-              aquasec/trivy:0.74.0 \
-              image \
-              --scanners vuln \
-              --severity HIGH,CRITICAL \
-              --ignore-unfixed \
-              --ignorefile /workspace/.trivyignore \
-              --format json \
-              --output "/work/${SAFE_NAME}-trivy.json" \
-              --exit-code 1 \
-              "${IMAGE}"
-
-            # --------------------------------------------------------
-            # 6. Show Trivy vulnerability findings
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Trivy findings for msgpack/setuptools"
-            echo "=================================================="
-
-            jq '
-              .Results[]?.Vulnerabilities[]?
-              | select(
-                  (.PkgName == "msgpack") or
-                  (.PkgName == "setuptools")
-                )
-              | {
-                  Target,
-                  PkgName,
-                  InstalledVersion,
-                  FixedVersion,
-                  PkgPath,
-                  VulnerabilityID,
-                  Severity
-                }
-            ' "security-evidence/${SAFE_NAME}-trivy.json" || true
-
-            # --------------------------------------------------------
-            # 7. Generate CycloneDX SBOM directly from the image
-            #
-            # This is generated by the same Trivy version rather than
-            # using an externally supplied SBOM.
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Generating Trivy SBOM"
-            echo "=================================================="
-
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "${PWD}/security-evidence:/work" \
-              aquasec/trivy:0.74.0 \
-              image \
-              --format cyclonedx \
-              --output "/work/${SAFE_NAME}-sbom.json" \
-              "${IMAGE}"
-
-            # --------------------------------------------------------
-            # 8. Show versions Trivy recorded in its SBOM
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Trivy-generated SBOM package versions"
-            echo "=================================================="
-
-            echo "--- msgpack ---"
-
-            jq '
-              .components[]?
-              | select(
-                  (.name | ascii_downcase) == "msgpack"
-                )
-              | {
-                  name,
-                  version,
-                  purl,
-                  bom_ref
-                }
-            ' "security-evidence/${SAFE_NAME}-sbom.json" || true
-
-            echo
-            echo "--- setuptools ---"
-
-            jq '
-              .components[]?
-              | select(
-                  (.name | ascii_downcase) == "setuptools"
-                )
-              | {
-                  name,
-                  version,
-                  purl,
-                  bom_ref
-                }
-            ' "security-evidence/${SAFE_NAME}-sbom.json" || true
-
-            # --------------------------------------------------------
-            # 9. Final diagnostic summary
-            # --------------------------------------------------------
-            echo
-            echo "=================================================="
-            echo "Diagnostic summary"
-            echo "=================================================="
-
-            echo "Expected from container:"
-            docker run --rm "${IMAGE}" \
-              python -c \
-              "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('setuptools=', setuptools.__version__)"
-
-            echo
-            echo "Trivy vulnerability findings:"
-            jq -r '
-              .Results[]?.Vulnerabilities[]?
-              | select(
-                  (.PkgName == "msgpack") or
-                  (.PkgName == "setuptools")
-                )
-              | "\(.PkgName)=\(.InstalledVersion) vulnerability=\(.VulnerabilityID) fixed=\(.FixedVersion)"
-            ' "security-evidence/${SAFE_NAME}-trivy.json" || true
-
-            echo
-            echo "Trivy SBOM:"
-            jq -r '
-              .components[]?
-              | select(
-                  (.name | ascii_downcase) == "msgpack" or
-                  (.name | ascii_downcase) == "setuptools"
-                )
-              | "\(.name)=\(.version)"
-            ' "security-evidence/${SAFE_NAME}-sbom.json" || true
-
-          done
-
-
-      - name: Create backend security metadata
-        run: |
-          cat > security-evidence/deployment-metadata.txt <<EOF
-          Product: Orbiee
-          Component: Backend
-          Repository: ${{ needs.setup.outputs.repository }}
-          Ref: ${{ needs.setup.outputs.ref }}
-          Commit SHA: ${{ needs.setup.outputs.sha }}
-          Image Tag: ${{ steps.meta.outputs.image_tag }}
-          Build Time UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          GCP Project: ${{ env.GCP_PROJECT }}
-          GCP Region: ${{ env.GCP_REGION }}
-          Artifact Registry: ${{ env.ARTIFACT_REGISTRY }}
-          Security Scan: Trivy
-          Security Gate: HIGH/CRITICAL with available fixes
-          EOF
-
-      - name: Upload backend security evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: orbiee-backend-security-${{ steps.meta.outputs.image_tag }}
-          path: security-evidence/
-          retention-days: 30
-
-      # --------------------------------------------------------
-      # PUSH ONLY AFTER SECURITY GATE PASSES
-      # --------------------------------------------------------
-      - name: Push backend images
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGES=(
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
-          )
-
-          if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
-            IMAGES+=(
-              "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ steps.meta.outputs.image_tag }}"
-            )
-          fi
-
-          for IMAGE in "${IMAGES[@]}"; do
-            echo "Pushing ${IMAGE}"
-            docker push "${IMAGE}"
-          done
-
-      - name: Record Artifact Registry image digests
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          MANIFEST="deployment-manifest.txt"
-
-          {
-            echo "Product: Orbiee"
-            echo "Repository: ${{ needs.setup.outputs.repository }}"
-            echo "Ref: ${{ needs.setup.outputs.ref }}"
-            echo "Commit SHA: ${{ needs.setup.outputs.sha }}"
-            echo "Image Tag: ${{ steps.meta.outputs.image_tag }}"
-            echo "Build Time UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            echo ""
-            echo "Images:"
-          } > "${MANIFEST}"
-
-          IMAGES=(
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
-          )
-
-          if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
-            IMAGES+=(
-              "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ steps.meta.outputs.image_tag }}"
-            )
-          fi
-
-          for IMAGE in "${IMAGES[@]}"; do
-
-            DIGEST=""
-
-            for ATTEMPT in 1 2 3 4 5; do
-              DIGEST="$(gcloud artifacts docker images describe \
-                "${IMAGE}" \
-                --format='value(image_summary.digest)' 2>/dev/null || true)"
-
-              if [[ -n "${DIGEST}" ]]; then
-                break
-              fi
-
-              echo "Waiting for Artifact Registry metadata..."
-              sleep 3
-            done
-
-            if [[ -z "${DIGEST}" ]]; then
-              echo "ERROR: Could not retrieve digest for ${IMAGE}"
-              exit 1
-            fi
-
-            echo "${IMAGE}@${DIGEST}" >> "${MANIFEST}"
-          done
-
-          cat "${MANIFEST}"
-
-      - name: Upload deployment manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: orbiee-backend-deployment-manifest-${{ steps.meta.outputs.image_tag }}
-          path: deployment-manifest.txt
-          retention-days: 90
-
-
-  # ============================================================
-  # 3. DEPLOY BACKEND
-  # ============================================================
-  deploy-backend:
-    name: Deploy Backend to Cloud Run
-    needs:
-      - setup
-      - build-backend
-
-    if: needs.setup.outputs.repository == 'orbiee-jktech/Orbiee_Backend'
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SAKEY }}
-
-      - name: Setup Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run
         if: steps.check.outputs.has_changes == 'true'
@@ -1174,251 +532,104 @@ jobs:
           echo "🌍 URL: $(gcloud run services describe ${CLOUD_RUN_SERVICE} \
             --region=${REGION} --format='value(status.url)')"
 
-
-  # ============================================================
-  # 4. BUILD + SECURITY SCAN FRONTEND
-  # ============================================================
-  build-frontend:
-    name: Build and Security Scan Frontend
-    needs: setup
-    if: needs.setup.outputs.repository == 'orbiee-jktech/Orbiee_FrontEnd'
+  deploy-frontend:
+    if: ${{ github.event.client_payload.repository == 'orbiee-jktech/Orbiee_FrontEnd' }}
     runs-on: ubuntu-latest
-
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
+    needs: setup
 
     steps:
-
-      - name: Checkout exact source commit
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          repository: ${{ needs.setup.outputs.repository }}
-          ref: ${{ needs.setup.outputs.sha }}
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.ref }}
           token: ${{ secrets.PRIVATETOKENPULL }}
           fetch-depth: 0
 
-      - name: Verify exact commit
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          EXPECTED_SHA="${{ needs.setup.outputs.sha }}"
-          ACTUAL_SHA="$(git rev-parse HEAD)"
-
-          echo "Expected SHA: ${EXPECTED_SHA}"
-          echo "Actual SHA:   ${ACTUAL_SHA}"
-
-          if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
-            echo "ERROR: Checked out commit does not match requested SHA."
-            exit 1
-          fi
-
-          echo "Exact commit verified successfully."
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SAKEY }}
+          credentials_json: "${{ secrets.GCP_SAKEY }}"
 
-      - name: Setup Google Cloud CLI
+      - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: retail-jkommerce-poc
 
-      - name: Configure Docker authentication
+      - name: Check for Changes
+        id: check
         run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          git fetch --tags 2>/dev/null || true
+          BRANCH="${{ needs.setup.outputs.branch }}"
+          CHANGED=""
 
-      - name: Generate immutable image tag
-        id: meta
-        shell: bash
+          if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            ORIGIN_SHA=$(git rev-parse "origin/$BRANCH")
+            HEAD_SHA=$(git rev-parse HEAD)
+
+            if [[ "$ORIGIN_SHA" == "$HEAD_SHA" ]]; then
+              CHANGED="true"
+            else
+              CHANGED=$(git diff --name-only "origin/$BRANCH" HEAD | \
+                grep -vE '^(\.github/|README|WEBRTC_|cloudbuild)' || true)
+            fi
+          else
+            CHANGED="true"
+          fi
+
+          if [[ -n "$CHANGED" ]]; then
+            echo "✅ Changes detected, will deploy"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏭️  No relevant changes, skipping"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set Image Tag
+        if: steps.check.outputs.has_changes == 'true'
         run: |
-          set -euo pipefail
+          TAG=$(date +%Y%m%d-%H%M%S)
+          echo "TAG=$TAG" >> $GITHUB_ENV
 
-          SHORT_SHA="$(git rev-parse --short=12 HEAD)"
-          TIMESTAMP="$(date -u +'%Y%m%d-%H%M%S')"
-
-          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
-
-          echo "Image tag: ${IMAGE_TAG}"
-          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
-
-      # --------------------------------------------------------
-      # FRONTEND BUILD
-      #
-      # Current behavior is preserved:
-      # REACT_APP_ENV=dev
-      #
-      # IMPORTANT:
-      # Values in React REACT_APP_* variables are public and
-      # must never contain credentials or secrets.
-      # --------------------------------------------------------
-      - name: Build frontend image
+      - name: Build and Push Docker Image
+        if: steps.check.outputs.has_changes == 'true'
         run: |
+          BRANCH="${{ needs.setup.outputs.branch }}"
+          AR_REGION="${{ needs.setup.outputs.artifact_registry_region }}"
+          AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
+          IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
+          REACT_APP_ENV="dev"
+
+          # case "$BRANCH" in
+          #   dev|rearchitecture)  REACT_APP_ENV="dev" ;;
+          #   demov1|rearchitecture_demo) REACT_APP_ENV="demov1"        ;;
+          # esac
+
           docker build \
-            --build-arg REACT_APP_ENV=dev \
-            -t "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}" \
+            --build-arg REACT_APP_ENV=${REACT_APP_ENV} \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG} \
             .
 
-      # --------------------------------------------------------
-      # FRONTEND SECURITY SCAN
-      # --------------------------------------------------------
-      - name: Create security evidence directory
+          gcloud auth configure-docker ${AR_REGION}-docker.pkg.dev --quiet
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG}
+
+      - name: Deploy to Cloud Run
+        if: steps.check.outputs.has_changes == 'true'
         run: |
-          mkdir -p security-evidence
+          CLOUD_RUN_SERVICE="${{ needs.setup.outputs.cloud_run_service }}"
+          REGION="${{ needs.setup.outputs.region }}"
+          AR_REGION="${{ needs.setup.outputs.artifact_registry_region }}"
+          AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
+          IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
 
-      - name: Scan frontend image with Trivy
-        shell: bash
-        run: |
-          set -euo pipefail
+          gcloud run deploy ${CLOUD_RUN_SERVICE} \
+            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG} \
+            --platform=managed \
+            --region=${REGION} \
+            --allow-unauthenticated \
+            --quiet
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          SAFE_NAME="$(echo "${IMAGE}" | sed 's#[/:]#_#g')"
-
-          echo "Scanning ${IMAGE}"
-
-          # Full vulnerability report.
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${PWD}/security-evidence:/work" \
-            aquasec/trivy:latest \
-            image \
-            --format json \
-            --output "/work/${SAFE_NAME}-trivy.json" \
-            "${IMAGE}"
-
-          # Security gate.
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest \
-            image \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 1 \
-            "${IMAGE}"
-
-          # SBOM.
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${PWD}/security-evidence:/work" \
-            aquasec/trivy:latest \
-            image \
-            --format cyclonedx \
-            --output "/work/${SAFE_NAME}-sbom.json" \
-            "${IMAGE}"
-
-      - name: Create frontend security metadata
-        run: |
-          cat > security-evidence/deployment-metadata.txt <<EOF
-          Product: Orbiee
-          Component: Frontend
-          Repository: ${{ needs.setup.outputs.repository }}
-          Ref: ${{ needs.setup.outputs.ref }}
-          Commit SHA: ${{ needs.setup.outputs.sha }}
-          Image Tag: ${{ steps.meta.outputs.image_tag }}
-          Build Time UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          GCP Project: ${{ env.GCP_PROJECT }}
-          GCP Region: ${{ env.GCP_REGION }}
-          Artifact Registry: ${{ env.ARTIFACT_REGISTRY }}
-          Security Scan: Trivy
-          Security Gate: HIGH/CRITICAL with available fixes
-          EOF
-
-      - name: Upload frontend security evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: orbiee-frontend-security-${{ steps.meta.outputs.image_tag }}
-          path: security-evidence/
-          retention-days: 30
-
-      # --------------------------------------------------------
-      # PUSH ONLY AFTER SECURITY GATE PASSES
-      # --------------------------------------------------------
-      - name: Push frontend image
-        run: |
-          docker push \
-            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-      - name: Record Artifact Registry image digest
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.frontend_image }}:${{ steps.meta.outputs.image_tag }}"
-
-          DIGEST=""
-
-          for ATTEMPT in 1 2 3 4 5; do
-            DIGEST="$(gcloud artifacts docker images describe \
-              "${IMAGE}" \
-              --format='value(image_summary.digest)' 2>/dev/null || true)"
-
-            if [[ -n "${DIGEST}" ]]; then
-              break
-            fi
-
-            echo "Waiting for Artifact Registry metadata..."
-            sleep 3
-          done
-
-          if [[ -z "${DIGEST}" ]]; then
-            echo "ERROR: Could not retrieve image digest."
-            exit 1
-          fi
-
-          cat > deployment-manifest.txt <<EOF
-          Product: Orbiee
-          Component: Frontend
-          Repository: ${{ needs.setup.outputs.repository }}
-          Ref: ${{ needs.setup.outputs.ref }}
-          Commit SHA: ${{ needs.setup.outputs.sha }}
-          Image Tag: ${{ steps.meta.outputs.image_tag }}
-          Image: ${IMAGE}
-          Digest: ${DIGEST}
-          Build Time UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          EOF
-
-          cat deployment-manifest.txt
-
-      - name: Upload deployment manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: orbiee-frontend-deployment-manifest-${{ steps.meta.outputs.image_tag }}
-          path: deployment-manifest.txt
-          retention-days: 90
-
-
-  # ============================================================
-  # 5. DEPLOY FRONTEND
-  # ============================================================
-  deploy-frontend:
-    name: Deploy Frontend to Cloud Run
-    needs:
-      - setup
-      - build-frontend
-
-    if: needs.setup.outputs.repository == 'orbiee-jktech/Orbiee_FrontEnd'
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SAKEY }}
-
-      - name: Setup Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy frontend
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.frontend_image }}:${{ needs.build-frontend.outputs.image_tag }}"
-
-          gcloud run deploy "${{ needs.setup.outputs.frontend_service }}" \
-            --image="${IMAGE}" \
-            --region="${{ env.GCP_REGION }}" \
-            --project="${{ env.GCP_PROJECT }}" \
-            --allow-unauthenticated
+          echo ""
+          echo "✅ Deployed: $CLOUD_RUN_SERVICE"
+          echo "🌍 URL: $(gcloud run services describe ${CLOUD_RUN_SERVICE} \
+            --region=${REGION} --format='value(status.url)')"
