@@ -554,12 +554,12 @@ jobs:
           for name in ("msgpack", "setuptools"):
               try:
                   dist = distribution(name)
-                  print(f"{name}=")
-                  print(f"  version={dist.version}")
-                  print(f"  location={dist.locate_file("")}")
-                  print(f"  metadata={dist._path}")
+                  print(name + "=")
+                  print("  version=" + dist.version)
+                  print("  location=" + str(dist.locate_file("")))
+                  print("  metadata=" + str(dist._path))
               except Exception as e:
-                  print(f"{name}=ERROR: {e}")
+                  print(name + "=ERROR: " + str(e))
           '
 
             # --------------------------------------------------------
