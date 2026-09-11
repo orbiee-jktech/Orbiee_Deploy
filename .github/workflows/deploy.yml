@@ -505,6 +505,26 @@ jobs:
 
           mkdir -p security-evidence
 
+          echo "=================================================="
+          echo "Verifying Trivy ignore file"
+          echo "=================================================="
+
+          echo "Current directory:"
+          pwd
+
+          echo "Ignore file path:"
+          ls -la .trivyignore
+
+          echo "Ignore file contents:"
+          cat -n .trivyignore
+
+          echo "Checking CVE:"
+          if grep -Fxq "CVE-2025-47273" .trivyignore; then
+            echo "CVE-2025-47273 IS present in .trivyignore"
+          else
+            echo "ERROR: CVE-2025-47273 IS NOT present in .trivyignore"
+          fi
+
           for IMAGE in "${IMAGES[@]}"; do
 
             SAFE_NAME="$(echo "${IMAGE}" | sed 's#[/:]#_#g')"
