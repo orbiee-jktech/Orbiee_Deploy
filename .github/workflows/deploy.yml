@@ -53,7 +53,7 @@ jobs:
                 ENVIRONMENT="dev"
                 ;;
 
-              feature/SearchRetrieval)
+              feature/SearchRetrieval|feature/QU-LLM)
                 CLOUD_RUN_SERVICE="orbiee-backend-dev1"
                 IMAGE_NAME="orbiee-backend-dev1"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
