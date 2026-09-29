@@ -638,9 +638,10 @@ jobs:
             echo
             echo "=== .trivyignore INSIDE TRIVY CONTAINER ==="
             docker run --rm \
+              --entrypoint /bin/sh \
               -v "${PWD}:/workspace:ro" \
               aquasec/trivy:0.74.0 \
-              sh -c '
+              -c '
                 sha256sum /workspace/.trivyignore
                 cat -n /workspace/.trivyignore
               '
