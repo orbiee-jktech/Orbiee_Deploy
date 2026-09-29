@@ -630,6 +630,21 @@ jobs:
             echo "Trivy ignore file:"
             cat .trivyignore
 
+            echo "=== HOST .trivyignore ==="
+            pwd
+            sha256sum .trivyignore
+            cat -n .trivyignore
+
+            echo
+            echo "=== .trivyignore INSIDE TRIVY CONTAINER ==="
+            docker run --rm \
+              -v "${PWD}:/workspace:ro" \
+              aquasec/trivy:0.74.0 \
+              sh -c '
+                sha256sum /workspace/.trivyignore
+                cat -n /workspace/.trivyignore
+              '
+
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "${PWD}:/workspace" \
