@@ -433,55 +433,203 @@ jobs:
         run: |
           set -euo pipefail
 
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+          IMAGES=(
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.backend_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.impressions_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.preferences_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.type_affinity_image }}:${{ steps.meta.outputs.image_tag }}"
+            "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.item_popularity_image }}:${{ steps.meta.outputs.image_tag }}"
+          )
 
-          echo "=================================================="
-          echo "Image labels"
-          echo "=================================================="
+          if [[ "${{ github.event.client_payload.deploy_emotion_detection }}" == "yes" ]]; then
+            IMAGES+=(
+              "${{ env.ARTIFACT_REGISTRY }}/${{ needs.setup.outputs.emotion_image }}:${{ steps.meta.outputs.image_tag }}"
+            )
+          fi
 
-          docker image inspect "${IMAGE}" \
-            --format '{{json .Config.Labels}}' | jq .
+          mkdir -p security-evidence
 
-          echo
-          echo "=================================================="
-          echo "Trivy debug scan"
-          echo "=================================================="
+          for IMAGE in "${IMAGES[@]}"; do
 
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${PWD}/security-evidence:/work" \
-            aquasec/trivy:0.74.0 \
-            image \
-            --scanners vuln \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --debug \
-            --format json \
-            --output "/work/trivy-debug.json" \
-            --exit-code 0 \
-            "${IMAGE}"
+            SAFE_NAME="$(echo "${IMAGE}" | sed 's#[/:]#_#g')"
+            DEBUG_FILE="security-evidence/${SAFE_NAME}-trivy-debug.json"
 
-          echo
-          echo "=================================================="
-          echo "Trivy msgpack/setuptools findings"
-          echo "=================================================="
+            echo
+            echo "=================================================="
+            echo "Diagnosing: ${IMAGE}"
+            echo "=================================================="
 
-          jq '
-            .Results[]?.Vulnerabilities[]?
-            | select(
-                .PkgName == "msgpack" or
-                .PkgName == "setuptools"
-              )
-            | {
-                Target,
-                PkgName,
-                InstalledVersion,
-                FixedVersion,
-                PkgPath,
-                VulnerabilityID,
-                Severity
-              }
-          ' security-evidence/trivy-debug.json || true
+            # --------------------------------------------------------
+            # 1. Verify image
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Docker image"
+            echo "=================================================="
+
+            docker image inspect "${IMAGE}" \
+              --format 'IMAGE_ID={{.Id}} CREATED={{.Created}} TAGS={{.RepoTags}}'
+
+            # --------------------------------------------------------
+            # 2. Image labels
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Image labels"
+            echo "=================================================="
+
+            docker image inspect "${IMAGE}" \
+              --format '{{json .Config.Labels}}' | jq .
+
+            # --------------------------------------------------------
+            # 3. Actual Python package versions inside image
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Python packages inside image"
+            echo "=================================================="
+
+            docker run --rm "${IMAGE}" \
+              python -c \
+              "import msgpack, setuptools; print('msgpack=', msgpack.__version__); print('msgpack_file=', msgpack.__file__); print('setuptools=', setuptools.__version__); print('setuptools_file=', setuptools.__file__)"
+
+            # --------------------------------------------------------
+            # 4. All msgpack/setuptools metadata files
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Package metadata inside image"
+            echo "=================================================="
+
+            docker run --rm "${IMAGE}" \
+              sh -c '
+                echo "--- msgpack ---"
+                find / -type f \
+                  \( -path "*/msgpack-*.dist-info/METADATA" \
+                    -o -path "*/msgpack-*.egg-info/PKG-INFO" \) \
+                  -print 2>/dev/null |
+                while read -r f; do
+                  echo "----- ${f} -----"
+                  grep -E "^(Name|Version):" "${f}" || true
+                done
+
+                echo
+                echo "--- setuptools ---"
+                find / -type f \
+                  \( -path "*/setuptools-*.dist-info/METADATA" \
+                    -o -path "*/setuptools-*.egg-info/PKG-INFO" \) \
+                  -print 2>/dev/null |
+                while read -r f; do
+                  echo "----- ${f} -----"
+                  grep -E "^(Name|Version):" "${f}" || true
+                done
+              '
+
+            # --------------------------------------------------------
+            # 5. Trivy debug scan
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Trivy debug scan"
+            echo "=================================================="
+
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "${PWD}:/workspace" \
+              -v "${PWD}/security-evidence:/work" \
+              aquasec/trivy:0.74.0 \
+              image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --debug \
+              --format json \
+              --output "/work/${SAFE_NAME}-trivy-debug.json" \
+              --exit-code 0 \
+              "${IMAGE}"
+
+            # --------------------------------------------------------
+            # 6. Show ALL vulnerability findings
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "ALL Trivy vulnerability findings"
+            echo "=================================================="
+
+            jq -r '
+              .Results[]?.Vulnerabilities[]?
+              | [
+                  .PkgName,
+                  .InstalledVersion,
+                  .FixedVersion,
+                  .VulnerabilityID,
+                  .Severity,
+                  .PkgPath
+                ]
+              | @tsv
+            ' "${DEBUG_FILE}" || true
+
+            # --------------------------------------------------------
+            # 7. Show msgpack/setuptools findings specifically
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "msgpack/setuptools Trivy findings"
+            echo "=================================================="
+
+            jq '
+              .Results[]?.Vulnerabilities[]?
+              | select(
+                  (.PkgName | ascii_downcase) == "msgpack" or
+                  (.PkgName | ascii_downcase) == "setuptools"
+                )
+              | {
+                  Target,
+                  PkgName,
+                  InstalledVersion,
+                  FixedVersion,
+                  PkgPath,
+                  VulnerabilityID,
+                  Severity
+                }
+            ' "${DEBUG_FILE}" || true
+
+            # --------------------------------------------------------
+            # 8. Show every package Trivy detected
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Python packages detected by Trivy"
+            echo "=================================================="
+
+            jq -r '
+              .Results[]?.Packages[]?
+              | select(
+                  (.Name | ascii_downcase) == "msgpack" or
+                  (.Name | ascii_downcase) == "setuptools"
+                )
+              | "\(.Name)=\(.Version) path=\(.FilePath // "unknown")"
+            ' "${DEBUG_FILE}" 2>/dev/null || true
+
+            # --------------------------------------------------------
+            # 9. Show vulnerability IDs only
+            # --------------------------------------------------------
+            echo
+            echo "=================================================="
+            echo "Vulnerability IDs for msgpack/setuptools"
+            echo "=================================================="
+
+            jq -r '
+              .Results[]?.Vulnerabilities[]?
+              | select(
+                  (.PkgName | ascii_downcase) == "msgpack" or
+                  (.PkgName | ascii_downcase) == "setuptools"
+                )
+              | .VulnerabilityID
+            ' "${DEBUG_FILE}" 2>/dev/null |
+              sort -u || true
+
+          done
 
       
       - name: Scan backend images with Trivy
@@ -667,6 +815,11 @@ jobs:
             echo
             echo "=================================================="
             echo "Trivy findings for msgpack/setuptools"
+            trivy image \
+            --ignorefile /workspace/.trivyignore \
+            --format table \
+            "$IMAGE"
+
             echo "=================================================="
 
             jq '
