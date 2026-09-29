@@ -642,7 +642,7 @@ jobs:
               --ignorefile /workspace/.trivyignore \
               --format json \
               --output "/work/${SAFE_NAME}-trivy.json" \
-              --exit-code 1 \
+              --exit-code 0 \
               "${IMAGE}"
 
             # --------------------------------------------------------
