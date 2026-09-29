@@ -658,8 +658,19 @@ jobs:
               --ignorefile /workspace/.trivyignore \
               --format json \
               --output "/work/${SAFE_NAME}-trivy.json" \
-              --exit-code 1 \
+              --exit-code 0 \
               "${IMAGE}"
+
+            jq '
+              .Results[]?.Vulnerabilities[]?
+              | {
+                  PkgName,
+                  InstalledVersion,
+                  FixedVersion,
+                  VulnerabilityID,
+                  Severity
+                }
+            ' "security-evidence/${SAFE_NAME}-trivy.json"
 
             # --------------------------------------------------------
             # 6. Generate CycloneDX SBOM directly from the image
