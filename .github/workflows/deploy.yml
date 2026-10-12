@@ -286,9 +286,9 @@ jobs:
           echo "Deploying for env: $ENVIRONMENT"
 
           if [ "$ENVIRONMENT" = "dev" ]; then
-            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_BACKEND=orbiee-search-backend:latest,ORBIEE_SEARCH_ENGINE=orbiee-search-engine:latest,ORBIEE_SEARCH_PRISM_QU=orbiee-search-prism-qu:latest,ORBIEE_SEARCH_USE_GEMINI_QU=orbiee-search-use-gemini-qu:latest,ORBIEE_SEARCH_USE_QUERY_CACHE=orbiee-search-use-query-cache:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest"
           else
-            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_BACKEND=orbiee-search-backend-demo:latest,ORBIEE_SEARCH_ENGINE=orbiee-search-engine:latest,ORBIEE_SEARCH_PRISM_QU=orbiee-search-prism-qu:latest,ORBIEE_SEARCH_USE_GEMINI_QU=orbiee-search-use-gemini-qu:latest,ORBIEE_SEARCH_USE_QUERY_CACHE=orbiee-search-use-query-cache:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest"
           fi
 
           echo "Secrets: $SECRETS"
