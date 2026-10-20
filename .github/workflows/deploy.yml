@@ -15,12 +15,14 @@ jobs:
       cloud_run_service: ${{ steps.env.outputs.cloud_run_service }}
       cloud_worker_service: ${{ steps.env.outputs.cloud_worker_service }}
       emotion_detection_service: ${{ steps.env.outputs.emotion_detection_service }}
+      commerce_mock_service: ${{ steps.env.outputs.commerce_mock_service }}
       image_name: ${{ steps.env.outputs.image_name }}
       emotion_detection_image_name: ${{ steps.env.outputs.emotion_detection_image_name }}
       impressions_image_name: ${{ steps.env.outputs.impressions_image_name }}
       preferences_image_name: ${{ steps.env.outputs.preferences_image_name }}
       type_affinity_image_name: ${{ steps.env.outputs.type_affinity_image_name }}
       item_popularity_image_name: ${{ steps.env.outputs.item_popularity_image_name }}
+      commerce_mock_image_name: ${{ steps.env.outputs.commerce_mock_image_name }}
       environment: ${{ steps.env.outputs.environment }}
 
     steps:
@@ -44,12 +46,14 @@ jobs:
                 CLOUD_RUN_SERVICE="orbiee-backend-dev"
                 IMAGE_NAME="orbiee-backend-dev"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_IMAGE_NAME="orbiee-commerce-mock"
                 IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev"
                 PREFERENCES_IMAGE_NAME="orbiee-preferences-dev"
                 TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev"
                 ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev"
                 CLOUD_WORKER_SERVICE="orbiee-worker-dev"
                 EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_SERVICE="orbiee-commerce-mock"
                 ENVIRONMENT="dev"
                 ;;
 
@@ -57,12 +61,14 @@ jobs:
                 CLOUD_RUN_SERVICE="orbiee-backend-dev1"
                 IMAGE_NAME="orbiee-backend-dev1"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_IMAGE_NAME="orbiee-commerce-mock"
                 IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev1"
                 PREFERENCES_IMAGE_NAME="orbiee-preferences-dev1"
                 TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev1"
                 ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev1"
                 CLOUD_WORKER_SERVICE="orbiee-worker-dev1"
                 EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_SERVICE="orbiee-commerce-mock"
                 ENVIRONMENT="dev"
                 ;;
 
@@ -70,12 +76,14 @@ jobs:
                 CLOUD_RUN_SERVICE="orbiee-backend-dev"
                 IMAGE_NAME="orbiee-backend-dev"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_IMAGE_NAME="orbiee-commerce-mock"
                 IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev"
                 PREFERENCES_IMAGE_NAME="orbiee-preferences-dev"
                 TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev"
                 ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev"
                 CLOUD_WORKER_SERVICE="orbiee-worker-dev"
                 EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_SERVICE="orbiee-commerce-mock"
                 ENVIRONMENT="dev"
                 ;;
                 
@@ -83,12 +91,14 @@ jobs:
                 CLOUD_RUN_SERVICE="orbiee-backend"
                 IMAGE_NAME="orbiee-backend"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection"
+                COMMERCE_MOCK_IMAGE_NAME="orbiee-commerce-mock"
                 IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics"
                 PREFERENCES_IMAGE_NAME="orbiee-preferences"
                 TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh"
                 ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh"
                 CLOUD_WORKER_SERVICE="orbiee-worker"
                 EMOTION_DETECTION_SERVICE="orbiee-emotion-detection"
+                COMMERCE_MOCK_SERVICE="orbiee-commerce-mock"
                 ENVIRONMENT="demo"
                 ;;
                 
@@ -134,9 +144,11 @@ jobs:
           echo "artifact_registry_repo=$ARTIFACT_REGISTRY_REPO"        >> $GITHUB_OUTPUT
           echo "cloud_run_service=$CLOUD_RUN_SERVICE"                   >> $GITHUB_OUTPUT
           echo "cloud_worker_service=$CLOUD_WORKER_SERVICE"             >> $GITHUB_OUTPUT
+          echo "commerce_mock_service=$COMMERCE_MOCK_SERVICE"             >> $GITHUB_OUTPUT
           echo "image_name=$IMAGE_NAME"                                 >> $GITHUB_OUTPUT
           echo "emotion_detection_service=$EMOTION_DETECTION_SERVICE"   >> $GITHUB_OUTPUT
           echo "emotion_detection_image_name=$EMOTION_DETECTION_IMAGE_NAME"  >> $GITHUB_OUTPUT
+          echo "commerce_mock_image_name=$COMMERCE_MOCK_IMAGE_NAME"  >> $GITHUB_OUTPUT
           echo "impressions_image_name=$IMPRESSIONS_IMAGE_NAME"         >> $GITHUB_OUTPUT
           echo "preferences_image_name=$PREFERENCES_IMAGE_NAME"         >> $GITHUB_OUTPUT
           echo "type_affinity_image_name=$TYPE_AFFINITY_IMAGE_NAME"     >> $GITHUB_OUTPUT
@@ -220,6 +232,7 @@ jobs:
           AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
           IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
           EMOTION_DETECTION_IMAGE_NAME="${{ needs.setup.outputs.emotion_detection_image_name }}"
+          COMMERCE_MOCK_IMAGE_NAME="${{ needs.setup.outputs.commerce_mock_image_name }}"
           IMPRESSIONS_IMAGE_NAME="${{ needs.setup.outputs.impressions_image_name }}"
           PREFERENCES_IMAGE_NAME="${{ needs.setup.outputs.preferences_image_name }}"
           TYPE_AFFINITY_IMAGE_NAME="${{ needs.setup.outputs.type_affinity_image_name }}"
@@ -250,12 +263,18 @@ jobs:
           #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
           #   .
 
+          docker build \
+            -f apps/commerce_mock/Dockerfile \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+            apps/commerce_mock
+
           gcloud auth configure-docker ${AR_REGION}-docker.pkg.dev --quiet
           docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMPRESSIONS_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
           
           # if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
           #   docker build \
@@ -272,11 +291,13 @@ jobs:
           CLOUD_RUN_SERVICE="${{ needs.setup.outputs.cloud_run_service }}"
           CLOUD_WORKER_SERVICE="${{ needs.setup.outputs.cloud_worker_service }}"
           EMOTION_DETECTION_SERVICE="${{ needs.setup.outputs.emotion_detection_service }}"
+          COMMERCE_MOCK_SERVICE="${{ needs.setup.outputs.commerce_mock_service }}"
           REGION="${{ needs.setup.outputs.region }}"
           AR_REGION="${{ needs.setup.outputs.artifact_registry_region }}"
           AR_REPO="${{ needs.setup.outputs.artifact_registry_repo }}"
           IMAGE_NAME="${{ needs.setup.outputs.image_name }}"
           EMOTION_DETECTION_IMAGE_NAME="${{ needs.setup.outputs.emotion_detection_image_name }}"
+          COMMERCE_MOCK_IMAGE_NAME="${{ needs.setup.outputs.commerce_mock_image_name }}"
           IMPRESSIONS_IMAGE_NAME="${{ needs.setup.outputs.impressions_image_name }}"
           PREFERENCES_IMAGE_NAME="${{ needs.setup.outputs.preferences_image_name }}"
           TYPE_AFFINITY_IMAGE_NAME="${{ needs.setup.outputs.type_affinity_image_name }}"
@@ -315,6 +336,17 @@ jobs:
           #   --min-instances=1 \
           #   --max-instances=1 \
           #   --quiet
+
+          gcloud run deploy ${COMMERCE_MOCK_SERVICE} \
+            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+            --platform=managed \
+            --memory=2Gi \
+            --region=${REGION} \
+            --set-secrets=${SECRETS} \
+            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
+            --min-instances=1 \
+            --max-instances=1 \
+            --quiet
 
           # gcloud run services add-iam-policy-binding ${CLOUD_RUN_SERVICE} \
           #   --region=${REGION} \
