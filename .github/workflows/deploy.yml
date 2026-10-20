@@ -263,10 +263,10 @@ jobs:
           #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
           #   .
 
-          # docker build \
-          #   -f apps/commerce_mock/Dockerfile \
-          #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
-          #   .
+          docker build \
+            -f apps/commerce_mock/Dockerfile \
+            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+            .
 
           gcloud auth configure-docker ${AR_REGION}-docker.pkg.dev --quiet
           docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG}
@@ -274,7 +274,7 @@ jobs:
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG}
-          # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
+          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
           
           # if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
           #   docker build \
@@ -337,16 +337,16 @@ jobs:
           #   --max-instances=1 \
           #   --quiet
 
-          # gcloud run deploy ${COMMERCE_MOCK_SERVICE} \
-          #   --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
-          #   --platform=managed \
-          #   --memory=2Gi \
-          #   --region=${REGION} \
-          #   --set-secrets=${SECRETS} \
-          #   --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
-          #   --min-instances=1 \
-          #   --max-instances=1 \
-          #   --quiet
+          gcloud run deploy ${COMMERCE_MOCK_SERVICE} \
+            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+            --platform=managed \
+            --memory=2Gi \
+            --region=${REGION} \
+            --set-secrets=${SECRETS} \
+            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
+            --min-instances=1 \
+            --max-instances=1 \
+            --quiet
 
           # gcloud run services add-iam-policy-binding ${CLOUD_RUN_SERVICE} \
           #   --region=${REGION} \
