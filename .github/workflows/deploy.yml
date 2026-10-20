@@ -42,7 +42,7 @@ jobs:
           if [[ "$REPO" == "orbiee-jktech/Orbiee_Backend" ]]; then
 
             case "$BRANCH" in
-              rearchitecture|feature/emotion_detection)
+              rearchitecture|feature/emotion_detection|commerce_mock_apis)
                 CLOUD_RUN_SERVICE="orbiee-backend-dev"
                 IMAGE_NAME="orbiee-backend-dev"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
