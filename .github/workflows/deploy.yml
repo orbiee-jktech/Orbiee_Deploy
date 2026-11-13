@@ -61,7 +61,7 @@ jobs:
                 ENVIRONMENT="dev"
                 ;;
 
-              feature/SearchRetrieval)
+              feature/sarvam)
                 CLOUD_RUN_SERVICE="orbiee-backend-dev1"
                 IMAGE_NAME="orbiee-backend-dev1"
                 EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
@@ -358,27 +358,27 @@ jobs:
           #   --max-instances=1 \
           #   --quiet
 
-          gcloud run deploy ${COMMERCE_MOCK_SERVICE} \
-            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
-            --platform=managed \
-            --memory=2Gi \
-            --region=${REGION} \
-            --set-secrets=${SECRETS} \
-            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
-            --min-instances=1 \
-            --max-instances=1 \
-            --quiet
+          # gcloud run deploy ${COMMERCE_MOCK_SERVICE} \
+          #   --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+          #   --platform=managed \
+          #   --memory=2Gi \
+          #   --region=${REGION} \
+          #   --set-secrets=${SECRETS} \
+          #   --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
+          #   --min-instances=1 \
+          #   --max-instances=1 \
+          #   --quiet
 
-          gcloud run deploy ${ADMIN_SERVICE} \
-            --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG} \
-            --platform=managed \
-            --memory=2Gi \
-            --region=${REGION} \
-            --set-secrets=${SECRETS} \
-            --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
-            --min-instances=1 \
-            --max-instances=1 \
-            --quiet
+          # gcloud run deploy ${ADMIN_SERVICE} \
+          #   --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG} \
+          #   --platform=managed \
+          #   --memory=2Gi \
+          #   --region=${REGION} \
+          #   --set-secrets=${SECRETS} \
+          #   --set-env-vars="ORBIEE_GCP_PROJECT=retail-jkommerce-poc,ORBIEE_DEBUG=false,VERTEX_PROJECT=218142584790,RETAIL_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/servingConfigs/recommenedfy,RETAIL_BRANCH=projects/218142584790/locations/global/catalogs/default_catalog/branches/2,RETAIL_SEARCH_PLACEMENT=projects/218142584790/locations/global/catalogs/default_catalog/placements/default_search" \
+          #   --min-instances=1 \
+          #   --max-instances=1 \
+          #   --quiet
 
           # gcloud run services add-iam-policy-binding ${CLOUD_RUN_SERVICE} \
           #   --region=${REGION} \
