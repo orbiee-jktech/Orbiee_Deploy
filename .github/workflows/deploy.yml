@@ -78,6 +78,23 @@ jobs:
                 ENVIRONMENT="dev"
                 ;;
 
+              feature/shopify)
+                CLOUD_RUN_SERVICE="orbiee-backend-dev2"
+                IMAGE_NAME="orbiee-backend-dev2"
+                EMOTION_DETECTION_IMAGE_NAME="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_IMAGE_NAME="orbiee-commerce-mock"
+                ADMIN_IMAGE_NAME="orbiee-admin"
+                IMPRESSIONS_IMAGE_NAME="orbiee-impressions-analytics-dev1"
+                PREFERENCES_IMAGE_NAME="orbiee-preferences-dev1"
+                TYPE_AFFINITY_IMAGE_NAME="orbiee-type-affinity-refresh-dev1"
+                ITEM_POPULARITY_IMAGE_NAME="orbiee-item-popularity-refresh-dev1"
+                CLOUD_WORKER_SERVICE="orbiee-worker-dev1"
+                EMOTION_DETECTION_SERVICE="orbiee-emotion-detection-dev"
+                COMMERCE_MOCK_SERVICE="orbiee-commerce-mock"
+                ADMIN_SERVICE="orbiee-admin"
+                ENVIRONMENT="dev"
+                ;;
+
               feature/*)
                 CLOUD_RUN_SERVICE="orbiee-backend-dev"
                 IMAGE_NAME="orbiee-backend-dev"
@@ -276,15 +293,15 @@ jobs:
           #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG} \
           #   .
 
-          docker build \
-            -f apps/commerce_mock/Dockerfile \
-            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
-            .
+          # docker build \
+          #   -f apps/commerce_mock/Dockerfile \
+          #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG} \
+          #   .
 
-          docker build \
-            -f apps/admin_service/Dockerfile \
-            -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG} \
-            .
+          # docker build \
+          #   -f apps/admin_service/Dockerfile \
+          #   -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG} \
+          #   .
 
           gcloud auth configure-docker ${AR_REGION}-docker.pkg.dev --quiet
           docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${IMAGE_NAME}:${TAG}
@@ -292,8 +309,8 @@ jobs:
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${PREFERENCES_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${TYPE_AFFINITY_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ITEM_POPULARITY_IMAGE_NAME}:${TAG}
-          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
-          docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG}
+          # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
+          # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG}
           
           # if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
           #   docker build \
