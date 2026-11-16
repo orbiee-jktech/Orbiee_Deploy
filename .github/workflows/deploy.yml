@@ -312,14 +312,14 @@ jobs:
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${COMMERCE_MOCK_IMAGE_NAME}:${TAG}
           # docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${ADMIN_IMAGE_NAME}:${TAG}
           
-          # if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
-          #   docker build \
-          #     -f apps/emotion_detection_service/Dockerfile \
-          #     -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
-          #     apps/emotion_detection_service
+          if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
+            docker build \
+              -f apps/emotion_detection_service/Dockerfile \
+              -t ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
+              apps/emotion_detection_service
 
-          #   docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG}
-          # fi
+            docker push ${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG}
+          fi
 
       - name: Deploy to Cloud Run
         if: steps.check.outputs.has_changes == 'true'
@@ -345,9 +345,9 @@ jobs:
           echo "Deploying for env: $ENVIRONMENT"
 
           if [ "$ENVIRONMENT" = "dev" ]; then
-            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_TOKEN=orbiee-jwt-token:latest"
           else
-            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_TOKEN=orbiee-jwt-token:latest"
           fi
 
           echo "Secrets: $SECRETS"
@@ -407,24 +407,24 @@ jobs:
           #   --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
           #   --role="roles/run.invoker"
 
-          # if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
-          #   gcloud run deploy ${EMOTION_DETECTION_SERVICE} \
-          #     --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
-          #     --platform=managed \
-          #     --cpu=4 \
-          #     --memory=8Gi \
-          #     --region=${REGION} \
-          #     --set-secrets=${SECRETS} \
-          #     --set-env-vars="EMOTION_MODEL_HUB=hf" \
-          #     --min-instances=1 \
-          #     --max-instances=1 \
-          #     --quiet
+          if [ "${{ github.event.client_payload.deploy_emotion_detection }}" = "yes" ]; then
+            gcloud run deploy ${EMOTION_DETECTION_SERVICE} \
+              --image=${AR_REGION}-docker.pkg.dev/retail-jkommerce-poc/${AR_REPO}/${EMOTION_DETECTION_IMAGE_NAME}:${TAG} \
+              --platform=managed \
+              --cpu=4 \
+              --memory=8Gi \
+              --region=${REGION} \
+              --set-secrets=${SECRETS} \
+              --set-env-vars="EMOTION_MODEL_HUB=hf" \
+              --min-instances=1 \
+              --max-instances=1 \
+              --quiet
 
-          #   gcloud run services add-iam-policy-binding ${EMOTION_DETECTION_SERVICE} \
-          #     --region=${REGION} \
-          #     --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
-          #     --role="roles/run.invoker"
-          # fi
+            gcloud run services add-iam-policy-binding ${EMOTION_DETECTION_SERVICE} \
+              --region=${REGION} \
+              --member="serviceAccount:218142584790-compute@developer.gserviceaccount.com" \
+              --role="roles/run.invoker"
+          fi
 
           # if gcloud run jobs describe ${IMPRESSIONS_IMAGE_NAME} --region=${REGION} >/dev/null 2>&1; then
           #   echo "Updating existing job..."
