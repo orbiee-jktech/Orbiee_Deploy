@@ -345,9 +345,9 @@ jobs:
           echo "Deploying for env: $ENVIRONMENT"
 
           if [ "$ENVIRONMENT" = "dev" ]; then
-            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_TOKEN=orbiee-jwt-token:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_SECRET=orbiee-jwt-secret:latest"
           else
-            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_TOKEN=orbiee-jwt-token:latest"
+            SECRETS="DB_CONFIG=orbiee-db-config-demo:latest,API_KEYS_JSON=orbiee-api-keys:latest,REDIS_URL=orbiee-demo-redis-url:latest,ORBIEE_SEARCH_CONFIG=orbiee-search-config:latest,ORBIEE_JWT_SECRET=orbiee-jwt-secret:latest"
           fi
 
           echo "Secrets: $SECRETS"
